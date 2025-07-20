@@ -509,6 +509,175 @@ def get_nautobot_secrets_groups() -> list[dict[str, any]]:
         raise
 
 
+def search_devices_by_location(location_pattern: str) -> list[dict[str, any]]:
+    """Search for devices by location using regex pattern via GraphQL query.
+    
+    Args:
+        location_pattern: Regular expression pattern to match location names.
+        
+    Returns:
+        List of device dictionaries with name, id, role, location, primary_ip4, and status.
+        
+    Raises:
+        Exception: If unable to query Nautobot devices.
+    """
+    try:
+        # Prepare GraphQL query for location-based device search
+        query = """
+        query devives_in_location (
+            $location_filter: [String]
+        ) {
+            locations (name__re: $location_filter) {
+                name
+                devices {
+                    id
+                    name
+                    role {
+                        name
+                    }
+                    location {
+                        name
+                    }
+                    primary_ip4 {
+                        address
+                    }
+                    status {
+                        name
+                    }
+                }
+            }
+        }
+        """
+        
+        # Prepare variables
+        variables = {
+            "location_filter": [location_pattern]
+        }
+        
+        # Prepare the payload
+        payload = {
+            "query": query,
+            "variables": variables
+        }
+        
+        # Set up headers
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Token {NAUTOBOT_API_TOKEN}"
+        }
+        
+        # Make the GraphQL request
+        url = f"{NAUTOBOT_URL}/api/graphql/"
+        response = requests.post(url, headers=headers, json=payload)
+        
+        if response.status_code != 200:
+            logger.error(f"GraphQL query failed: {response.status_code} - {response.text}")
+            raise Exception(f"GraphQL query failed with status {response.status_code}")
+        
+        result = response.json()
+        
+        # Check if there are any errors in the GraphQL response
+        if 'errors' in result:
+            logger.error(f"GraphQL errors: {result['errors']}")
+            raise Exception(f"GraphQL query errors: {result['errors']}")
+        
+        # Parse the response and flatten the nested device structure
+        data = result.get('data', {})
+        locations = data.get('locations', [])
+        
+        # Flatten devices from all matching locations
+        all_devices = []
+        for location in locations:
+            devices = location.get('devices', [])
+            all_devices.extend(devices)
+        
+        logger.info(f"Retrieved {len(all_devices)} devices from locations matching pattern '{location_pattern}'")
+        return all_devices
+            
+    except Exception as e:
+        logger.error(f"Error searching devices by location pattern '{location_pattern}' via GraphQL: {e}")
+        raise
+
+
+def search_devices_by_tag(tag_pattern: str) -> list[dict[str, any]]:
+    """Search for devices by tag using pattern via GraphQL query.
+    
+    Args:
+        tag_pattern: Tag name pattern to match devices.
+        
+    Returns:
+        List of device dictionaries with name, id, role, location, primary_ip4, and status.
+        
+    Raises:
+        Exception: If unable to query Nautobot devices.
+    """
+    try:
+        # Prepare GraphQL query for tag-based device search
+        query = """
+        query devices_by_tags($tag_filter: [String]) {
+            devices(tags: $tag_filter) {
+                name
+                id
+                role {
+                    name
+                }
+                location {
+                    name
+                }
+                primary_ip4 {
+                    address
+                }
+                status {
+                    name
+                }
+            }
+        }
+        """
+        
+        # Prepare variables
+        variables = {
+            "tag_filter": [tag_pattern]
+        }
+        
+        # Prepare the payload
+        payload = {
+            "query": query,
+            "variables": variables
+        }
+        
+        # Set up headers
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Token {NAUTOBOT_API_TOKEN}"
+        }
+        
+        # Make the GraphQL request
+        url = f"{NAUTOBOT_URL}/api/graphql/"
+        response = requests.post(url, headers=headers, json=payload)
+        
+        if response.status_code != 200:
+            logger.error(f"GraphQL query failed: {response.status_code} - {response.text}")
+            raise Exception(f"GraphQL query failed with status {response.status_code}")
+        
+        result = response.json()
+        
+        # Check if there are any errors in the GraphQL response
+        if 'errors' in result:
+            logger.error(f"GraphQL errors: {result['errors']}")
+            raise Exception(f"GraphQL query errors: {result['errors']}")
+        
+        # Parse the response
+        data = result.get('data', {})
+        devices = data.get('devices', [])
+        
+        logger.info(f"Retrieved {len(devices)} devices with tag '{tag_pattern}'")
+        return devices
+            
+    except Exception as e:
+        logger.error(f"Error searching devices by tag '{tag_pattern}' via GraphQL: {e}")
+        raise
+
+
 def search_devices_by_regex(regex_pattern: str) -> list[dict[str, any]]:
     """Search for devices in Nautobot using regex pattern via GraphQL query.
     
@@ -999,7 +1168,16 @@ def api_search_devices():
         if len(pattern) < 3:
             return {"error": "Pattern must be at least 3 characters"}, 400
         
-        devices = search_devices_by_regex(pattern)
+        # Get search type (default to 'name')
+        search_type = data.get('search_type', 'name')
+        
+        if search_type == 'location':
+            devices = search_devices_by_location(pattern)
+        elif search_type == 'tag':
+            devices = search_devices_by_tag(pattern)
+        else:  # default to name search
+            devices = search_devices_by_regex(pattern)
+            
         return {"devices": devices}, 200
         
     except Exception as e:

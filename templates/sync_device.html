@@ -105,6 +105,21 @@
         box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
     }
     
+    /* Search type dropdown styling to match search input */
+    #searchType.form-select {
+        border: 2px solid #dee2e6;
+        border-radius: 0.5rem;
+        padding: 12px 16px;
+        font-size: 1.1rem;
+        height: auto;
+        transition: all 0.3s ease;
+    }
+    
+    #searchType.form-select:focus {
+        border-color: #007bff;
+        box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+    }
+    
     .loading-spinner {
         display: none;
     }
@@ -298,15 +313,26 @@
                 <i class="bi bi-search me-2"></i>
                 Device Search & Selection
             </h5>
-            <div class="position-relative">
-                <input type="text" 
-                       id="deviceSearch" 
-                       class="form-control search-input" 
-                       placeholder="Enter device name pattern (min. 3 characters)..."
-                       autocomplete="off">
-                <div class="loading-spinner position-absolute top-50 end-0 translate-middle-y me-3">
-                    <div class="spinner-border spinner-border-sm text-primary" role="status">
-                        <span class="visually-hidden">Loading...</span>
+            <div class="row">
+                <div class="col-md-3">
+                    <select class="form-select" id="searchType">
+                        <option value="name">Name</option>
+                        <option value="location">Location</option>
+                        <option value="tag">Tag</option>
+                    </select>
+                </div>
+                <div class="col-md-9">
+                    <div class="position-relative">
+                        <input type="text" 
+                               id="deviceSearch" 
+                               class="form-control search-input" 
+                               placeholder="Enter device name pattern (min. 3 characters)..."
+                               autocomplete="off">
+                        <div class="loading-spinner position-absolute top-50 end-0 translate-middle-y me-3">
+                            <div class="spinner-border spinner-border-sm text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -314,7 +340,7 @@
         <div class="col-md-4 text-end">
             <p class="mb-0 text-muted">
                 <i class="bi bi-info-circle me-2"></i>
-                Uses regex patterns
+                Use Name, Location or Tag
             </p>
         </div>
     </div>
@@ -540,6 +566,7 @@
 document.addEventListener('DOMContentLoaded', function() {
     // Element references
     const deviceSearch = document.getElementById('deviceSearch');
+    const searchType = document.getElementById('searchType');
     const loadingSpinner = document.querySelector('.loading-spinner');
     const statusSelect = document.getElementById('statusSelect');
     const namespaceSelect = document.getElementById('namespaceSelect');
@@ -583,6 +610,18 @@ document.addEventListener('DOMContentLoaded', function() {
     loadDropdownOptions();
     updateArrowButtons();
     updateSelectedCount();
+    updatePlaceholder();
+    
+    // Search type change handler
+    searchType.addEventListener('change', function() {
+        updatePlaceholder();
+        // Clear current search results when type changes
+        searchDevices = [];
+        searchFilteredDevices = [];
+        renderSearchTable();
+        // Clear search input
+        deviceSearch.value = '';
+    });
     
     // Search functionality
     deviceSearch.addEventListener('input', function() {
@@ -653,10 +692,14 @@ document.addEventListener('DOMContentLoaded', function() {
     // Search devices API function
     async function searchDevicesAPI(pattern) {
         try {
+            const currentSearchType = searchType.value;
             const response = await fetch('/api/search-devices', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ pattern: pattern })
+                body: JSON.stringify({ 
+                    pattern: pattern,
+                    search_type: currentSearchType
+                })
             });
             
             const data = await response.json();
@@ -1082,6 +1125,18 @@ document.addEventListener('DOMContentLoaded', function() {
         const existingError = document.getElementById('regex-error');
         if (existingError) {
             existingError.remove();
+        }
+    }
+    
+    // Update placeholder text based on search type
+    function updatePlaceholder() {
+        const currentSearchType = searchType.value;
+        if (currentSearchType === 'location') {
+            deviceSearch.placeholder = 'Enter location name pattern (min. 3 characters)...';
+        } else if (currentSearchType === 'tag') {
+            deviceSearch.placeholder = 'Enter tag name (min. 3 characters)...';
+        } else {
+            deviceSearch.placeholder = 'Enter device name pattern (min. 3 characters)...';
         }
     }
 });
