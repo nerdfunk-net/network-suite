@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Saved Hosts - nerdfunk Onboarding</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .hosts-list {
+            list-style-type: none;
+            padding: 0;
+        }
+        .host-item {
+            background-color: #f8f9fa;
+            padding: 10px 15px;
+            margin-bottom: 5px;
+            border-radius: 4px;
+            border-left: 3px solid #007bff;
+        }
+        .no-hosts {
+            text-align: center;
+            color: #6c757d;
+            font-style: italic;
+            margin: 30px 0;
+        }
+        .nav-link {
+            display: inline-block;
+            margin-top: 20px;
+            color: #007bff;
+            text-decoration: none;
+        }
+        .nav-link:hover {
+            text-decoration: underline;
+        }
+        .host-count {
+            color: #6c757d;
+            font-size: 14px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Saved Hostnames</h1>
+        
+        <div style="text-align: right; margin-bottom: 20px;">
+            <span style="color: #6c757d;">Logged in as: <strong>{{ session.username }}</strong></span>
+            <a href="{{ url_for('logout') }}" style="margin-left: 15px; color: #dc3545; text-decoration: none;">Logout</a>
+        </div>
+        
+        {% if hosts %}
+            <div class="host-count">
+                Total hosts: {{ hosts|length }}
+            </div>
+            <ul class="hosts-list">
+                {% for host in hosts %}
+                    <li class="host-item">{{ host }}</li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <div class="no-hosts">
+                No hostnames have been saved yet.
+            </div>
+        {% endif %}
+        
+        <a href="{{ url_for('index') }}" class="nav-link">← Back to Form</a>
+    </div>
+</body>
+</html>

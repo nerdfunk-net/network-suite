@@ -1,0 +1,464 @@
+{% extends "base.html" %}
+
+{% block title %}Sync Device - nerdfunk Onboarding Suite{% endblock %}
+{% block page_title %}Device Synchronization{% endblock %}
+
+{% block extra_css %}
+<style>
+    .search-container {
+        background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+        border-radius: 1rem;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+    }
+    
+    .device-table {
+        background: white;
+        border-radius: 0.5rem;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        overflow: hidden;
+    }
+    
+    .table-header {
+        background: linear-gradient(135deg, #007bff, #0056b3);
+        color: white;
+    }
+    
+    .device-row:hover {
+        background-color: #f8f9fa;
+    }
+    
+    .sync-button {
+        background: linear-gradient(135deg, #28a745, #1e7e34);
+        border: none;
+        padding: 12px 30px;
+        border-radius: 0.5rem;
+        color: white;
+        font-weight: 500;
+        transition: all 0.3s ease;
+    }
+    
+    .sync-button:hover:not(:disabled) {
+        background: linear-gradient(135deg, #1e7e34, #155724);
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(40, 167, 69, 0.3);
+    }
+    
+    .sync-button:disabled {
+        background: #6c757d;
+        cursor: not-allowed;
+    }
+    
+    .search-input {
+        border: 2px solid #dee2e6;
+        border-radius: 0.5rem;
+        padding: 12px 16px;
+        font-size: 1.1rem;
+        transition: all 0.3s ease;
+    }
+    
+    .search-input:focus {
+        border-color: #007bff;
+        box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+    }
+    
+    .loading-spinner {
+        display: none;
+    }
+    
+    .status-badge {
+        padding: 0.25rem 0.5rem;
+        border-radius: 0.25rem;
+        font-size: 0.875rem;
+        font-weight: 500;
+    }
+    
+    .no-devices {
+        text-align: center;
+        padding: 3rem;
+        color: #6c757d;
+        font-style: italic;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Search Section -->
+<div class="search-container">
+    <div class="row align-items-center">
+        <div class="col-md-8">
+            <h5 class="mb-3">
+                <i class="bi bi-search me-2"></i>
+                Device Search
+            </h5>
+            <div class="position-relative">
+                <input type="text" 
+                       id="deviceSearch" 
+                       class="form-control search-input" 
+                       placeholder="Enter device name pattern (min. 3 characters)..."
+                       autocomplete="off">
+                <div class="loading-spinner position-absolute top-50 end-0 translate-middle-y me-3">
+                    <div class="spinner-border spinner-border-sm text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 text-end">
+            <p class="mb-0 text-muted">
+                <i class="bi bi-info-circle me-2"></i>
+                Uses regex patterns
+            </p>
+        </div>
+    </div>
+</div>
+
+<!-- Devices Table -->
+<div class="device-table">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0" id="devicesTable">
+            <thead class="table-header">
+                <tr>
+                    <th width="5%">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="selectAll">
+                            <label class="form-check-label" for="selectAll">
+                                <span class="visually-hidden">Select All</span>
+                            </label>
+                        </div>
+                    </th>
+                    <th width="20%">Device Name</th>
+                    <th width="15%">Primary IP</th>
+                    <th width="20%">Location</th>
+                    <th width="15%">Role</th>
+                    <th width="15%">Status</th>
+                </tr>
+            </thead>
+            <tbody id="devicesTableBody">
+                <tr class="no-devices">
+                    <td colspan="6">
+                        <i class="bi bi-search me-2"></i>
+                        Use the search field above to find devices
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Sync Section -->
+<div class="row mt-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h6 class="card-title">
+                    <i class="bi bi-gear-fill me-2"></i>
+                    Sync Configuration
+                </h6>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="statusSelect" class="form-label">Status</label>
+                        <select class="form-select" id="statusSelect" required>
+                            <option value="">Select status...</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label for="namespaceSelect" class="form-label">Namespace</label>
+                        <select class="form-select" id="namespaceSelect" required>
+                            <option value="">Select namespace...</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 d-flex align-items-end">
+        <div class="w-100">
+            <button type="button" 
+                    class="btn sync-button w-100" 
+                    id="syncButton" 
+                    disabled>
+                <i class="bi bi-arrow-clockwise me-2"></i>
+                Sync Selected Devices (<span id="selectedCount">0</span>)
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    let searchTimeout;
+    const deviceSearch = document.getElementById('deviceSearch');
+    const devicesTableBody = document.getElementById('devicesTableBody');
+    const selectAllCheckbox = document.getElementById('selectAll');
+    const syncButton = document.getElementById('syncButton');
+    const selectedCountSpan = document.getElementById('selectedCount');
+    const loadingSpinner = document.querySelector('.loading-spinner');
+    const statusSelect = document.getElementById('statusSelect');
+    const namespaceSelect = document.getElementById('namespaceSelect');
+    
+    // Load dropdown options
+    loadDropdownOptions();
+    
+    // Device search with debounce
+    deviceSearch.addEventListener('input', function() {
+        const query = this.value.trim();
+        
+        clearTimeout(searchTimeout);
+        
+        if (query.length < 3) {
+            return;
+        }
+        
+        loadingSpinner.style.display = 'block';
+        
+        searchTimeout = setTimeout(() => {
+            searchDevices(query);
+        }, 20);
+    });
+    
+    // Select all functionality
+    selectAllCheckbox.addEventListener('change', function() {
+        const checkboxes = devicesTableBody.querySelectorAll('input[type="checkbox"]');
+        checkboxes.forEach(cb => cb.checked = this.checked);
+        updateSelectedCount();
+    });
+    
+    // Sync button functionality
+    syncButton.addEventListener('click', function() {
+        const selectedDevices = getSelectedDevices();
+        const statusId = statusSelect.value;
+        const namespaceId = namespaceSelect.value;
+        
+        if (!statusId || !namespaceId) {
+            showAlert('Please select both status and namespace.', 'error');
+            return;
+        }
+        
+        if (selectedDevices.length === 0) {
+            showAlert('Please select at least one device to sync.', 'error');
+            return;
+        }
+        
+        syncSelectedDevices(selectedDevices, statusId, namespaceId);
+    });
+    
+    // Load dropdown options
+    async function loadDropdownOptions() {
+        try {
+            // We need to create these endpoints - for now load empty
+            const statuses = [
+                {id: 'active', name: 'Active'},
+                {id: 'planned', name: 'Planned'},
+                {id: 'staged', name: 'Staged'}
+            ];
+            
+            const namespaces = [
+                {id: 'global', name: 'Global'},
+                {id: 'default', name: 'Default'}
+            ];
+            
+            populateSelect(statusSelect, statuses);
+            populateSelect(namespaceSelect, namespaces);
+        } catch (error) {
+            console.error('Error loading dropdown options:', error);
+        }
+    }
+    
+    function populateSelect(selectElement, options) {
+        options.forEach(option => {
+            const optionElement = document.createElement('option');
+            optionElement.value = option.id;
+            optionElement.textContent = option.name;
+            selectElement.appendChild(optionElement);
+        });
+    }
+    
+    // Search devices function
+    async function searchDevices(pattern) {
+        try {
+            const response = await fetch('/api/search-devices', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ pattern: pattern })
+            });
+            
+            const data = await response.json();
+            loadingSpinner.style.display = 'none';
+            
+            if (!response.ok) {
+                showAlert(data.error || 'Search failed', 'error');
+                return;
+            }
+            
+            updateDevicesTable(data.devices);
+            
+        } catch (error) {
+            loadingSpinner.style.display = 'none';
+            showAlert('Network error occurred during search', 'error');
+            console.error('Search error:', error);
+        }
+    }
+    
+    // Update devices table
+    function updateDevicesTable(devices) {
+        // Get currently selected devices
+        const currentlySelected = getSelectedDevices();
+        
+        // Clear table except selected rows
+        const rows = Array.from(devicesTableBody.querySelectorAll('tr'));
+        rows.forEach(row => {
+            const checkbox = row.querySelector('input[type="checkbox"]');
+            if (!checkbox || !checkbox.checked) {
+                row.remove();
+            }
+        });
+        
+        // Add new devices
+        devices.forEach(device => {
+            // Skip if device is already in table
+            const existingRow = devicesTableBody.querySelector(`tr[data-device-name="${device.name}"]`);
+            if (existingRow) return;
+            
+            const row = document.createElement('tr');
+            row.className = 'device-row';
+            row.setAttribute('data-device-name', device.name);
+            
+            row.innerHTML = `
+                <td>
+                    <div class="form-check">
+                        <input class="form-check-input device-checkbox" 
+                               type="checkbox" 
+                               value="${device.name}">
+                    </div>
+                </td>
+                <td><strong>${device.name}</strong></td>
+                <td>${device.primary_ip4 ? device.primary_ip4.address : '<span class="text-muted">N/A</span>'}</td>
+                <td>${device.location ? device.location.name : '<span class="text-muted">N/A</span>'}</td>
+                <td>${device.role ? device.role.name : '<span class="text-muted">N/A</span>'}</td>
+                <td><span class="status-badge bg-primary text-white">${device.status ? device.status.name : 'Unknown'}</span></td>
+            `;
+            
+            devicesTableBody.appendChild(row);
+            
+            // Add event listener for checkbox
+            const checkbox = row.querySelector('.device-checkbox');
+            checkbox.addEventListener('change', updateSelectedCount);
+        });
+        
+        // Remove "no devices" message if it exists
+        const noDevicesRow = devicesTableBody.querySelector('.no-devices');
+        if (noDevicesRow && devices.length > 0) {
+            noDevicesRow.remove();
+        }
+        
+        updateSelectedCount();
+    }
+    
+    // Get selected devices
+    function getSelectedDevices() {
+        const selectedCheckboxes = devicesTableBody.querySelectorAll('.device-checkbox:checked');
+        return Array.from(selectedCheckboxes).map(cb => cb.value);
+    }
+    
+    // Update selected count
+    function updateSelectedCount() {
+        const selectedDevices = getSelectedDevices();
+        const count = selectedDevices.length;
+        
+        selectedCountSpan.textContent = count;
+        syncButton.disabled = count === 0;
+        
+        // Update select all checkbox state
+        const allCheckboxes = devicesTableBody.querySelectorAll('.device-checkbox');
+        const checkedCheckboxes = devicesTableBody.querySelectorAll('.device-checkbox:checked');
+        
+        if (allCheckboxes.length === 0) {
+            selectAllCheckbox.indeterminate = false;
+            selectAllCheckbox.checked = false;
+        } else if (checkedCheckboxes.length === allCheckboxes.length) {
+            selectAllCheckbox.indeterminate = false;
+            selectAllCheckbox.checked = true;
+        } else if (checkedCheckboxes.length > 0) {
+            selectAllCheckbox.indeterminate = true;
+        } else {
+            selectAllCheckbox.indeterminate = false;
+            selectAllCheckbox.checked = false;
+        }
+    }
+    
+    // Sync selected devices
+    async function syncSelectedDevices(devices, statusId, namespaceId) {
+        syncButton.disabled = true;
+        syncButton.innerHTML = '<div class="spinner-border spinner-border-sm me-2"></div>Syncing...';
+        
+        try {
+            const response = await fetch('/api/sync-devices', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    devices: devices,
+                    status_id: statusId,
+                    namespace_id: namespaceId
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (!response.ok) {
+                showAlert(data.error || 'Sync failed', 'error');
+                return;
+            }
+            
+            // Show results
+            const summary = data.summary;
+            if (summary.successful > 0) {
+                showAlert(`Successfully initiated sync for ${summary.successful} of ${summary.total} devices.`, 'success');
+            }
+            
+            if (summary.failed > 0) {
+                showAlert(`Failed to sync ${summary.failed} devices. Check logs for details.`, 'warning');
+            }
+            
+            // Log detailed results
+            console.log('Sync results:', data.results);
+            
+        } catch (error) {
+            showAlert('Network error occurred during sync', 'error');
+            console.error('Sync error:', error);
+        } finally {
+            syncButton.disabled = false;
+            syncButton.innerHTML = '<i class="bi bi-arrow-clockwise me-2"></i>Sync Selected Devices (<span id="selectedCount">' + getSelectedDevices().length + '</span>)';
+            updateSelectedCount();
+        }
+    }
+    
+    // Show alert function
+    function showAlert(message, type) {
+        // Create alert element
+        const alertDiv = document.createElement('div');
+        alertDiv.className = `alert alert-${type === 'error' ? 'danger' : type} alert-dismissible fade show`;
+        alertDiv.innerHTML = `
+            <i class="bi bi-${type === 'error' ? 'exclamation-triangle' : type === 'success' ? 'check-circle' : 'info-circle'}-fill me-2"></i>
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        
+        // Insert at top of content
+        const content = document.querySelector('.container-fluid');
+        content.insertBefore(alertDiv, content.firstChild);
+        
+        // Auto dismiss after 5 seconds
+        setTimeout(() => {
+            if (alertDiv.parentNode) {
+                alertDiv.remove();
+            }
+        }, 5000);
+    }
+});
+</script>
+{% endblock %}

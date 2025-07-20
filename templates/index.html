@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+
+{% block title %}Device Onboarding - nerdfunk network suite{% endblock %}
+{% block page_title %}Device Onboarding{% endblock %}
+
+{% block extra_css %}
+<style>
+    .feature-card {
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    
+    .feature-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+    }
+    
+    .ip-input-section {
+        background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+        border-radius: 1rem;
+        padding: 2rem;
+        margin-bottom: 2rem;
+    }
+    
+    .stats-card {
+        background: linear-gradient(135deg, #007bff, #0056b3);
+        color: white;
+        border-radius: 1rem;
+        padding: 1.5rem;
+        text-align: center;
+    }
+    
+    /* Gray placeholder text */
+    #ip_address::placeholder {
+        color: #6c757d !important;
+        opacity: 0.7;
+    }
+    
+    #ip_address::-webkit-input-placeholder {
+        color: #6c757d !important;
+        opacity: 0.7;
+    }
+    
+    #ip_address::-moz-placeholder {
+        color: #6c757d !important;
+        opacity: 0.7;
+    }
+    
+    #ip_address:-ms-input-placeholder {
+        color: #6c757d !important;
+        opacity: 0.7;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- User Section -->
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h4 class="text-dark">Device Onboarding Dashboard</h4>
+        <p class="text-muted">Validate IP addresses against Nautobot DCIM and onboard new devices.</p>
+    </div>
+    <div class="col-md-4 text-end">
+        <a href="{{ url_for('logout') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-box-arrow-right me-1"></i>
+            Logout
+        </a>
+    </div>
+</div>
+
+<!-- IP Validation Section -->
+<div class="ip-input-section mb-4">
+    <div class="row align-items-center">
+        <div class="col-12">
+            <h5 class="mb-3">
+                <i class="bi bi-search me-2 text-primary"></i>
+                IP Address Validation
+            </h5>
+            <form method="POST" class="row g-2 align-items-end">
+                <div class="col-auto flex-grow-1" style="max-width: 400px;">
+                    <div class="input-group">
+                        <span class="input-group-text bg-primary text-white">
+                            <i class="bi bi-globe"></i>
+                        </span>
+                        <input type="text" 
+                               class="form-control" 
+                               id="ip_address" 
+                               name="ip_address" 
+                               placeholder="enter IP address"
+                               pattern="^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$"
+                               title="Please enter a valid IPv4 address"
+                               required>
+                    </div>
+                </div>
+                <div class="col-auto">
+                    <button type="submit" class="btn btn-primary px-3">
+                        <i class="bi bi-search me-2"></i>
+                        Check IP
+                    </button>
+                </div>
+            </form>
+            <div class="form-text mt-2">
+                <i class="bi bi-info-circle me-1"></i>
+                Enter an IPv4 address to check if it exists in Nautobot
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Features Section -->
+<div class="row">
+    <div class="col-md-4 mb-4">
+        <div class="card feature-card border-0 h-100">
+            <div class="card-body text-center p-4">
+                <div class="mb-3">
+                    <i class="bi bi-shield-check text-primary" style="font-size: 3rem;"></i>
+                </div>
+                <h5 class="card-title">IP Validation</h5>
+                <p class="card-text text-muted">
+                    Verify if IP addresses exist in your Nautobot instance before proceeding with device onboarding.
+                </p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4 mb-4">
+        <div class="card feature-card border-0 h-100">
+            <div class="card-body text-center p-4">
+                <div class="mb-3">
+                    <i class="bi bi-plus-circle text-success" style="font-size: 3rem;"></i>
+                </div>
+                <h5 class="card-title">Auto Onboarding</h5>
+                <p class="card-text text-muted">
+                    Automatically onboard new devices when IP addresses are not found in the system.
+                </p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4 mb-4">
+        <div class="card feature-card border-0 h-100">
+            <div class="card-body text-center p-4">
+                <div class="mb-3">
+                    <i class="bi bi-graph-up text-info" style="font-size: 3rem;"></i>
+                </div>
+                <h5 class="card-title">Real-time Updates</h5>
+                <p class="card-text text-muted">
+                    Get instant feedback and updates through the GraphQL API integration.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Actions -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card border-0" style="background: linear-gradient(135deg, #f8f9fa, #e9ecef);">
+            <div class="card-body">
+                <h6 class="card-title">
+                    <i class="bi bi-lightning me-2"></i>
+                    Quick Actions
+                </h6>
+                <div class="d-flex gap-2 flex-wrap">
+                    <a href="{{ url_for('onboard_device') }}" class="btn btn-outline-primary">
+                        <i class="bi bi-plus me-1"></i>
+                        Onboard Device
+                    </a>
+                    <a href="{{ url_for('sync_device') }}" class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-repeat me-1"></i>
+                        Sync Devices
+                    </a>
+                    <button class="btn btn-outline-info" disabled>
+                        <i class="bi bi-graph-up me-1"></i>
+                        View Reports
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,12 @@
+{
+  "nautobot": {
+    "url": "http://your-nautobot-server:8080",
+    "username": "your-admin-username",
+    "api_token": "your-api-token-here"
+  },
+  "server": {
+    "host": "127.0.0.1",
+    "port": 5003,
+    "debug": true
+  }
+}
