@@ -122,6 +122,170 @@
         color: #6c757d;
         font-style: italic;
     }
+
+    /* Two Tables Layout */
+    .tables-container {
+        margin-top: 2rem;
+    }
+    
+    .tables-wrapper {
+        display: flex;
+        gap: 2rem;
+        align-items: flex-start;
+    }
+    
+    .table-section {
+        flex: 1;
+        min-width: 0; /* Prevents flex items from overflowing */
+    }
+    
+    .table-header-section {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+        padding: 1rem;
+        background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+        border-radius: 0.5rem;
+    }
+    
+    .table-controls {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+    
+    /* Arrow Buttons */
+    .arrow-buttons {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        align-self: center;
+        margin: 2rem 0;
+    }
+    
+    .arrow-btn {
+        position: relative;
+        width: 60px;
+        height: 60px;
+        border: 2px solid #007bff;
+        background: linear-gradient(135deg, #007bff, #0056b3);
+        color: white;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.2rem;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(0, 123, 255, 0.3);
+    }
+    
+    .arrow-btn:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(0, 123, 255, 0.4);
+    }
+    
+    .arrow-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: 0 2px 8px rgba(0, 123, 255, 0.2);
+    }
+    
+    .count-badge {
+        position: absolute;
+        top: -8px;
+        right: -8px;
+        background: #dc3545;
+        color: white;
+        border-radius: 50%;
+        width: 24px;
+        height: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.75rem;
+        font-weight: bold;
+        border: 2px solid white;
+        box-shadow: 0 2px 8px rgba(220, 53, 69, 0.3);
+    }
+    
+    .count-badge:empty {
+        display: none;
+    }
+    
+    /* Sync Configuration Styling */
+    .sync-config-table {
+        font-size: 0.85rem;
+    }
+    
+    .sync-config-table .fw-bold {
+        font-size: 0.8rem;
+        font-weight: 600;
+    }
+    
+    .sync-config-table .form-label {
+        font-size: 0.75rem;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 0.25rem;
+    }
+    
+    .sync-config-table .form-select-sm {
+        font-size: 0.8rem;
+        padding: 0.4rem 0.75rem;
+    }
+    
+    .sync-config-table .form-check-label {
+        font-size: 0.8rem;
+        font-weight: 400;
+    }
+    
+    .sync-config-table .badge {
+        font-size: 0.75rem;
+        font-weight: 500;
+        padding: 0.35rem 0.65rem;
+    }
+    
+    .sync-button-compact {
+        font-size: 0.85rem;
+        font-weight: 500;
+        padding: 0.6rem 1.5rem;
+        letter-spacing: 0.025em;
+    }
+    
+    /* Responsive Design */
+    @media (max-width: 768px) {
+        .tables-wrapper {
+            flex-direction: column;
+            gap: 1rem;
+        }
+        
+        .arrow-buttons {
+            flex-direction: row;
+            justify-content: center;
+            align-self: stretch;
+            margin: 1rem 0;
+        }
+        
+        .arrow-btn {
+            width: 50px;
+            height: 50px;
+            font-size: 1rem;
+        }
+        
+        .table-header-section {
+            flex-direction: column;
+            gap: 1rem;
+            text-align: center;
+        }
+        
+        .table-controls {
+            justify-content: center;
+        }
+    }
 </style>
 {% endblock %}
 
@@ -132,7 +296,7 @@
         <div class="col-md-8">
             <h5 class="mb-3">
                 <i class="bi bi-search me-2"></i>
-                Device Search
+                Device Search & Selection
             </h5>
             <div class="position-relative">
                 <input type="text" 
@@ -156,164 +320,273 @@
     </div>
 </div>
 
-<!-- Devices Table -->
-<div class="device-table">
-    <div class="table-responsive">
-        <table class="table table-hover mb-0" id="devicesTable">
-            <thead class="table-header">
-                <tr>
-                    <th width="5%">
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="selectAll">
-                            <label class="form-check-label" for="selectAll">
-                                <span class="visually-hidden">Select All</span>
-                            </label>
-                        </div>
-                    </th>
-                    <th width="20%">Device Name</th>
-                    <th width="15%">Primary IP</th>
-                    <th width="20%">Location</th>
-                    <th width="15%">Role</th>
-                    <th width="15%">Status</th>
-                </tr>
-            </thead>
-            <tbody id="devicesTableBody">
-                <tr class="no-devices">
-                    <td colspan="6">
-                        <i class="bi bi-search me-2"></i>
-                        Use the search field above to find devices
-                    </td>
-                </tr>
-            </tbody>
-        </table>
-    </div>
-    
-    <!-- Pagination Controls -->
-    <div class="pagination-controls d-flex justify-content-between align-items-center">
-        <div class="pagination-info">
-            Showing <span id="pageStart">0</span> to <span id="pageEnd">0</span> of <span id="totalDevices">0</span> devices
-        </div>
-        <div class="pagination-buttons">
-            <button class="page-btn" id="prevPageBtn" onclick="changePage(-1)">
-                <i class="bi bi-chevron-left"></i> Previous
-            </button>
-            <span id="pageNumbers"></span>
-            <button class="page-btn" id="nextPageBtn" onclick="changePage(1)">
-                Next <i class="bi bi-chevron-right"></i>
-            </button>
-        </div>
-    </div>
-</div>
-
-<!-- Sync Section -->
-<div class="row mt-4">
-    <div class="col-md-8">
-        <div class="card">
-            <div class="card-body">
-                <h6 class="card-title">
-                    <i class="bi bi-gear-fill me-2"></i>
-                    Sync Configuration
-                </h6>
-                <div class="row">
-                    <div class="col-md-6 mb-3">
-                        <label for="statusSelect" class="form-label">Status</label>
-                        <select class="form-select" id="statusSelect" required>
-                            <option value="">Select status...</option>
-                        </select>
-                    </div>
-                    <div class="col-md-6 mb-3">
-                        <label for="namespaceSelect" class="form-label">Namespace</label>
-                        <select class="form-select" id="namespaceSelect" required>
-                            <option value="">Select namespace...</option>
-                        </select>
-                    </div>
+<!-- Two Tables Layout -->
+<div class="tables-container">
+    <div class="tables-wrapper">
+        <!-- Left Table - Search Results -->
+        <div class="table-section">
+            <div class="table-header-section">
+                <h5><i class="bi bi-list-ul me-2"></i>Search Results</h5>
+                <div class="table-controls">
+                    <input class="form-check-input me-2" type="checkbox" id="selectAllSearch">
+                    <label class="form-check-label" for="selectAllSearch">Select All</label>
                 </div>
-                <div class="row">
-                    <div class="col-md-6 mb-2">
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="syncCables" checked>
-                            <label class="form-check-label" for="syncCables">
-                                <i class="bi bi-ethernet me-2"></i>Sync Cables
-                            </label>
-                        </div>
-                    </div>
-                    <div class="col-md-6 mb-2">
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="syncSoftware" checked>
-                            <label class="form-check-label" for="syncSoftware">
-                                <i class="bi bi-cpu me-2"></i>Sync Software
-                            </label>
-                        </div>
-                    </div>
-                    <div class="col-md-6 mb-2">
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="syncVlans" checked>
-                            <label class="form-check-label" for="syncVlans">
-                                <i class="bi bi-diagram-3 me-2"></i>Sync VLANs
-                            </label>
-                        </div>
-                    </div>
-                    <div class="col-md-6 mb-2">
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="syncVrfs" checked>
-                            <label class="form-check-label" for="syncVrfs">
-                                <i class="bi bi-router me-2"></i>Sync VRFs
-                            </label>
-                        </div>
-                    </div>
+            </div>
+            <div class="device-table">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0" id="searchTable">
+                        <thead class="table-header">
+                            <tr>
+                                <th width="5%">
+                                    <span class="visually-hidden">Select</span>
+                                </th>
+                                <th width="20%">Device Name</th>
+                                <th width="15%">Primary IP</th>
+                                <th width="20%">Location</th>
+                                <th width="15%">Role</th>
+                                <th width="15%">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="searchTableBody">
+                            <tr>
+                                <td colspan="6" class="text-center text-muted py-4">
+                                    <i class="bi bi-search me-2"></i>
+                                    Enter at least 3 characters to search for devices
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <!-- Search Table Pagination -->
+            <div class="pagination-controls d-flex justify-content-between align-items-center mt-3">
+                <div class="pagination-info">
+                    <span id="searchPaginationInfo">Showing 0 - 0 of 0 devices</span>
+                </div>
+                <div class="pagination-buttons">
+                    <button class="page-btn" onclick="changeSearchPage(-1)">
+                        <i class="bi bi-chevron-left"></i> Previous
+                    </button>
+                    <span id="searchPageNumbers"></span>
+                    <button class="page-btn" onclick="changeSearchPage(1)">
+                        Next <i class="bi bi-chevron-right"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Arrow Buttons -->
+        <div class="arrow-buttons">
+            <button class="arrow-btn" id="moveRightBtn" title="Add selected devices">
+                <i class="bi bi-arrow-right"></i>
+                <span class="count-badge" id="rightCountBadge">0</span>
+            </button>
+            <button class="arrow-btn" id="moveLeftBtn" title="Remove selected devices">
+                <i class="bi bi-arrow-left"></i>
+                <span class="count-badge" id="leftCountBadge">0</span>
+            </button>
+        </div>
+        
+        <!-- Right Table - Selected Devices -->
+        <div class="table-section">
+            <div class="table-header-section">
+                <h5><i class="bi bi-check2-square me-2"></i>Selected Devices</h5>
+                <div class="table-controls">
+                    <input class="form-check-input me-2" type="checkbox" id="selectAllSelected">
+                    <label class="form-check-label" for="selectAllSelected">Select All</label>
+                    <span class="ms-3 badge bg-primary" id="selectedDevicesCount">0 devices</span>
+                </div>
+            </div>
+            <div class="device-table">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0" id="selectedTable">
+                        <thead class="table-header">
+                            <tr>
+                                <th width="5%">
+                                    <span class="visually-hidden">Select</span>
+                                </th>
+                                <th width="20%">Device Name</th>
+                                <th width="15%">Primary IP</th>
+                                <th width="20%">Location</th>
+                                <th width="15%">Role</th>
+                                <th width="15%">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="selectedTableBody">
+                            <tr>
+                                <td colspan="6" class="text-center text-muted py-4">
+                                    <i class="bi bi-info-circle me-2"></i>
+                                    No devices selected. Search and add devices from the left table.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <!-- Selected Table Pagination -->
+            <div class="pagination-controls d-flex justify-content-between align-items-center mt-3">
+                <div class="pagination-info">
+                    <span id="selectedPaginationInfo">Showing 0 - 0 of 0 devices</span>
+                </div>
+                <div class="pagination-buttons">
+                    <button class="page-btn" onclick="changeSelectedPage(-1)">
+                        <i class="bi bi-chevron-left"></i> Previous
+                    </button>
+                    <span id="selectedPageNumbers"></span>
+                    <button class="page-btn" onclick="changeSelectedPage(1)">
+                        Next <i class="bi bi-chevron-right"></i>
+                    </button>
                 </div>
             </div>
         </div>
     </div>
-    <div class="col-md-4 d-flex align-items-end">
-        <div class="w-100">
-            <button type="button" 
-                    class="btn sync-button w-100" 
-                    id="syncButton" 
-                    disabled>
-                <i class="bi bi-arrow-clockwise me-2"></i>
-                Sync Selected Devices (<span id="selectedCount">0</span>)
-            </button>
+</div>
+
+<!-- Sync Configuration Table -->
+<div class="mt-4">
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0">
+                <i class="bi bi-gear-fill me-2"></i>
+                Sync Configuration & Execution
+            </h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-borderless mb-0 sync-config-table">
+                    <tbody>
+                        <!-- Configuration Row -->
+                        <tr>
+                            <td width="15%" class="fw-bold text-end align-middle">
+                                <i class="bi bi-sliders me-1"></i>Configuration
+                            </td>
+                            <td width="25%">
+                                <label for="statusSelect" class="form-label text-muted mb-1">Status</label>
+                                <select class="form-select form-select-sm" id="statusSelect" required>
+                                    <option value="">Select status...</option>
+                                </select>
+                            </td>
+                            <td width="25%">
+                                <label for="namespaceSelect" class="form-label text-muted mb-1">Namespace</label>
+                                <select class="form-select form-select-sm" id="namespaceSelect" required>
+                                    <option value="">Select namespace...</option>
+                                </select>
+                            </td>
+                            <td width="35%" rowspan="2" class="align-middle text-center">
+                                <div class="d-flex flex-column align-items-center">
+                                    <div class="mb-2">
+                                        <span class="badge bg-secondary" id="selectedCount">0 devices</span>
+                                    </div>
+                                    <button type="button" 
+                                            class="btn sync-button sync-button-compact" 
+                                            id="syncButton" 
+                                            disabled>
+                                        <i class="bi bi-arrow-clockwise me-2"></i>
+                                        Execute Sync
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        <!-- Options Row -->
+                        <tr>
+                            <td class="fw-bold text-end align-top pt-3">
+                                <i class="bi bi-list-check me-1"></i>Options
+                            </td>
+                            <td colspan="2" class="pt-3">
+                                <div class="row g-2">
+                                    <div class="col-6">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="syncCables" checked>
+                                            <label class="form-check-label" for="syncCables">
+                                                <i class="bi bi-ethernet me-1"></i>Cables
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="syncSoftware" checked>
+                                            <label class="form-check-label" for="syncSoftware">
+                                                <i class="bi bi-cpu me-1"></i>Software
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="syncVlans" checked>
+                                            <label class="form-check-label" for="syncVlans">
+                                                <i class="bi bi-diagram-3 me-1"></i>VLANs
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="syncVrfs" checked>
+                                            <label class="form-check-label" for="syncVrfs">
+                                                <i class="bi bi-router me-1"></i>VRFs
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 </div>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    let searchTimeout;
+    // Element references
     const deviceSearch = document.getElementById('deviceSearch');
-    const devicesTableBody = document.getElementById('devicesTableBody');
-    const selectAllCheckbox = document.getElementById('selectAll');
-    const syncButton = document.getElementById('syncButton');
-    const selectedCountSpan = document.getElementById('selectedCount');
     const loadingSpinner = document.querySelector('.loading-spinner');
     const statusSelect = document.getElementById('statusSelect');
     const namespaceSelect = document.getElementById('namespaceSelect');
+    const syncButton = document.getElementById('syncButton');
     const syncCablesCheckbox = document.getElementById('syncCables');
     const syncSoftwareCheckbox = document.getElementById('syncSoftware');
     const syncVlansCheckbox = document.getElementById('syncVlans');
     const syncVrfsCheckbox = document.getElementById('syncVrfs');
     
-    // Pagination variables
+    // Table elements
+    const searchTableBody = document.getElementById('searchTableBody');
+    const selectedTableBody = document.getElementById('selectedTableBody');
+    const selectAllSearch = document.getElementById('selectAllSearch');
+    const selectAllSelected = document.getElementById('selectAllSelected');
+    
+    // Arrow button elements
+    const moveRightBtn = document.getElementById('moveRightBtn');
+    const moveLeftBtn = document.getElementById('moveLeftBtn');
+    const rightCountBadge = document.getElementById('rightCountBadge');
+    const leftCountBadge = document.getElementById('leftCountBadge');
+    const selectedDevicesCount = document.getElementById('selectedDevicesCount');
+    const selectedCount = document.getElementById('selectedCount');
+    
+    // Data storage
     const ITEMS_PER_PAGE = 10;
-    let currentPage = 1;
-    let allDevices = []; // Store all devices for pagination
-    let filteredDevices = []; // Store currently filtered devices
+    let searchTimeout;
     
-    // Load dropdown options
+    // Search table data
+    let searchDevices = [];
+    let searchFilteredDevices = [];
+    let searchCurrentPage = 1;
+    let searchSelectedIds = new Set();
+    
+    // Selected table data
+    let selectedDevices = [];
+    let selectedFilteredDevices = [];
+    let selectedCurrentPage = 1;
+    let selectedSelectedIds = new Set();
+    
+    // Initialize
     loadDropdownOptions();
+    updateArrowButtons();
+    updateSelectedCount();
     
-    // Initialize pagination controls
-    updatePaginationControls(0, 0, 0, 0);
-    
-    // Make pagination functions globally available
-    window.changePage = changePage;
-    window.goToPage = goToPage;
-    
-    // Device search with debounce
+    // Search functionality
     deviceSearch.addEventListener('input', function() {
         const query = this.value.trim();
-        
         clearTimeout(searchTimeout);
         
         if (query.length < 3) {
@@ -321,42 +594,40 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         loadingSpinner.style.display = 'block';
-        
         searchTimeout = setTimeout(() => {
-            searchDevices(query);
-        }, 20);
+            searchDevicesAPI(query);
+        }, 300);
     });
     
-    // Select all functionality (works on current page)
-    selectAllCheckbox.addEventListener('change', function() {
-        const currentPageCheckboxes = devicesTableBody.querySelectorAll('.device-checkbox');
-        currentPageCheckboxes.forEach(cb => {
+    // Arrow button event listeners
+    moveRightBtn.addEventListener('click', moveSelectedToRight);
+    moveLeftBtn.addEventListener('click', moveSelectedToLeft);
+    
+    // Select all event listeners
+    selectAllSearch.addEventListener('change', function() {
+        const checkboxes = searchTableBody.querySelectorAll('.device-checkbox');
+        checkboxes.forEach(cb => {
             cb.checked = this.checked;
-            updateCheckboxSelection(cb);
+            updateSearchSelection(cb);
+        });
+    });
+    
+    selectAllSelected.addEventListener('change', function() {
+        const checkboxes = selectedTableBody.querySelectorAll('.device-checkbox');
+        checkboxes.forEach(cb => {
+            cb.checked = this.checked;
+            updateSelectedSelection(cb);
         });
     });
     
     // Sync button functionality
     syncButton.addEventListener('click', function() {
-        const selectedDevices = getSelectedDevices();
         const statusId = statusSelect.value;
         const namespaceId = namespaceSelect.value;
         const syncCables = syncCablesCheckbox.checked;
         const syncSoftware = syncSoftwareCheckbox.checked;
         const syncVlans = syncVlansCheckbox.checked;
         const syncVrfs = syncVrfsCheckbox.checked;
-        
-        console.log('Sync button clicked:', {
-            selectedDevices,
-            statusId,
-            namespaceId,
-            statusSelectValue: statusSelect.value,
-            namespaceSelectValue: namespaceSelect.value,
-            syncCables,
-            syncSoftware,
-            syncVlans,
-            syncVrfs
-        });
         
         if (!statusId || !namespaceId) {
             showAlert('Please select both status and namespace.', 'error');
@@ -371,6 +642,267 @@ document.addEventListener('DOMContentLoaded', function() {
         syncSelectedDevices(selectedDevices, statusId, namespaceId, syncCables, syncSoftware, syncVlans, syncVrfs);
     });
     
+    // Search devices API function
+    async function searchDevicesAPI(pattern) {
+        try {
+            const response = await fetch('/api/search-devices', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ pattern: pattern })
+            });
+            
+            const data = await response.json();
+            loadingSpinner.style.display = 'none';
+            
+            if (!response.ok) {
+                showAlert(data.error || 'Search failed', 'error');
+                return;
+            }
+            
+            searchDevices = data.devices;
+            searchFilteredDevices = [...data.devices];
+            searchCurrentPage = 1;
+            renderSearchTable();
+            
+        } catch (error) {
+            loadingSpinner.style.display = 'none';
+            showAlert('Network error occurred during search', 'error');
+            console.error('Search error:', error);
+        }
+    }
+    
+    // Render search table
+    function renderSearchTable() {
+        const startIndex = (searchCurrentPage - 1) * ITEMS_PER_PAGE;
+        const endIndex = startIndex + ITEMS_PER_PAGE;
+        const pageDevices = searchFilteredDevices.slice(startIndex, endIndex);
+        
+        searchTableBody.innerHTML = '';
+        
+        if (pageDevices.length === 0) {
+            searchTableBody.innerHTML = `
+                <tr>
+                    <td colspan="6" class="text-center text-muted py-4">
+                        <i class="bi bi-search me-2"></i>
+                        No devices found. Try a different search term.
+                    </td>
+                </tr>
+            `;
+            updateSearchPagination();
+            return;
+        }
+        
+        pageDevices.forEach(device => {
+            const row = document.createElement('tr');
+            const isSelected = searchSelectedIds.has(device.id);
+            
+            row.innerHTML = `
+                <td>
+                    <div class="form-check">
+                        <input class="form-check-input device-checkbox" 
+                               type="checkbox" 
+                               value="${device.id}"
+                               ${isSelected ? 'checked' : ''}>
+                    </div>
+                </td>
+                <td><strong>${device.name}</strong></td>
+                <td>${device.primary_ip4 ? device.primary_ip4.address : '<span class="text-muted">N/A</span>'}</td>
+                <td>${device.location ? device.location.name : '<span class="text-muted">N/A</span>'}</td>
+                <td>${device.role ? device.role.name : '<span class="text-muted">N/A</span>'}</td>
+                <td><span class="status-badge bg-primary text-white">${device.status ? device.status.name : 'Unknown'}</span></td>
+            `;
+            
+            searchTableBody.appendChild(row);
+            
+            // Add checkbox event listener
+            const checkbox = row.querySelector('.device-checkbox');
+            checkbox.addEventListener('change', () => updateSearchSelection(checkbox));
+        });
+        
+        updateSearchPagination();
+        updateArrowButtons();
+    }
+    
+    // Render selected table
+    function renderSelectedTable() {
+        const startIndex = (selectedCurrentPage - 1) * ITEMS_PER_PAGE;
+        const endIndex = startIndex + ITEMS_PER_PAGE;
+        const pageDevices = selectedFilteredDevices.slice(startIndex, endIndex);
+        
+        selectedTableBody.innerHTML = '';
+        
+        if (pageDevices.length === 0) {
+            selectedTableBody.innerHTML = `
+                <tr>
+                    <td colspan="6" class="text-center text-muted py-4">
+                        <i class="bi bi-info-circle me-2"></i>
+                        No devices selected. Search and add devices from the left table.
+                    </td>
+                </tr>
+            `;
+            updateSelectedPagination();
+            return;
+        }
+        
+        pageDevices.forEach(device => {
+            const row = document.createElement('tr');
+            const isSelected = selectedSelectedIds.has(device.id);
+            
+            row.innerHTML = `
+                <td>
+                    <div class="form-check">
+                        <input class="form-check-input device-checkbox" 
+                               type="checkbox" 
+                               value="${device.id}"
+                               ${isSelected ? 'checked' : ''}>
+                    </div>
+                </td>
+                <td><strong>${device.name}</strong></td>
+                <td>${device.primary_ip4 ? device.primary_ip4.address : '<span class="text-muted">N/A</span>'}</td>
+                <td>${device.location ? device.location.name : '<span class="text-muted">N/A</span>'}</td>
+                <td>${device.role ? device.role.name : '<span class="text-muted">N/A</span>'}</td>
+                <td><span class="status-badge bg-primary text-white">${device.status ? device.status.name : 'Unknown'}</span></td>
+            `;
+            
+            selectedTableBody.appendChild(row);
+            
+            // Add checkbox event listener
+            const checkbox = row.querySelector('.device-checkbox');
+            checkbox.addEventListener('change', () => updateSelectedSelection(checkbox));
+        });
+        
+        updateSelectedPagination();
+        updateArrowButtons();
+    }
+    
+    // Update search selection
+    function updateSearchSelection(checkbox) {
+        const deviceId = checkbox.value;
+        if (checkbox.checked) {
+            searchSelectedIds.add(deviceId);
+        } else {
+            searchSelectedIds.delete(deviceId);
+        }
+        updateArrowButtons();
+    }
+    
+    // Update selected selection
+    function updateSelectedSelection(checkbox) {
+        const deviceId = checkbox.value;
+        if (checkbox.checked) {
+            selectedSelectedIds.add(deviceId);
+        } else {
+            selectedSelectedIds.delete(deviceId);
+        }
+        updateArrowButtons();
+    }
+    
+    // Move selected devices to right table
+    function moveSelectedToRight() {
+        const devicesToMove = searchDevices.filter(device => searchSelectedIds.has(device.id));
+        
+        devicesToMove.forEach(device => {
+            // Check if device is already in selected table (ignore duplicates)
+            const exists = selectedDevices.some(d => d.id === device.id);
+            if (!exists) {
+                selectedDevices.push(device);
+            }
+        });
+        
+        // Clear search selections but don't change search table
+        searchSelectedIds.clear();
+        
+        // Update selected table
+        selectedFilteredDevices = [...selectedDevices];
+        selectedCurrentPage = 1;
+        renderSearchTable(); // Re-render to clear checkboxes
+        renderSelectedTable();
+        updateSelectedCount();
+        updateArrowButtons();
+    }
+    
+    // Move selected devices to left (remove from selected table)
+    function moveSelectedToLeft() {
+        // Remove devices from selected table
+        selectedDevices = selectedDevices.filter(device => !selectedSelectedIds.has(device.id));
+        
+        // Clear selected selections
+        selectedSelectedIds.clear();
+        
+        // Update selected table
+        selectedFilteredDevices = [...selectedDevices];
+        selectedCurrentPage = 1;
+        renderSelectedTable();
+        updateSelectedCount();
+        updateArrowButtons();
+    }
+    
+    // Update arrow buttons and badges
+    function updateArrowButtons() {
+        const rightCount = searchSelectedIds.size;
+        const leftCount = selectedSelectedIds.size;
+        
+        // Update badges
+        rightCountBadge.textContent = rightCount;
+        leftCountBadge.textContent = leftCount;
+        
+        // Show/hide badges
+        rightCountBadge.style.display = rightCount > 0 ? 'flex' : 'none';
+        leftCountBadge.style.display = leftCount > 0 ? 'flex' : 'none';
+        
+        // Enable/disable buttons
+        moveRightBtn.disabled = rightCount === 0;
+        moveLeftBtn.disabled = leftCount === 0;
+    }
+    
+    // Update selected devices count
+    function updateSelectedCount() {
+        const count = selectedDevices.length;
+        selectedDevicesCount.textContent = `${count} device${count !== 1 ? 's' : ''}`;
+        selectedCount.textContent = `${count} device${count !== 1 ? 's' : ''}`;
+        syncButton.disabled = count === 0;
+    }
+    
+    // Pagination functions
+    function updateSearchPagination() {
+        const totalDevices = searchFilteredDevices.length;
+        const startIndex = (searchCurrentPage - 1) * ITEMS_PER_PAGE;
+        const endIndex = Math.min(startIndex + ITEMS_PER_PAGE, totalDevices);
+        
+        document.getElementById('searchPaginationInfo').textContent = 
+            `Showing ${startIndex + 1} - ${endIndex} of ${totalDevices} devices`;
+    }
+    
+    function updateSelectedPagination() {
+        const totalDevices = selectedFilteredDevices.length;
+        const startIndex = (selectedCurrentPage - 1) * ITEMS_PER_PAGE;
+        const endIndex = Math.min(startIndex + ITEMS_PER_PAGE, totalDevices);
+        
+        document.getElementById('selectedPaginationInfo').textContent = 
+            `Showing ${startIndex + 1} - ${endIndex} of ${totalDevices} devices`;
+    }
+    
+    // Global functions for pagination buttons
+    window.changeSearchPage = function(direction) {
+        const totalPages = Math.ceil(searchFilteredDevices.length / ITEMS_PER_PAGE);
+        const newPage = searchCurrentPage + direction;
+        
+        if (newPage >= 1 && newPage <= totalPages) {
+            searchCurrentPage = newPage;
+            renderSearchTable();
+        }
+    };
+    
+    window.changeSelectedPage = function(direction) {
+        const totalPages = Math.ceil(selectedFilteredDevices.length / ITEMS_PER_PAGE);
+        const newPage = selectedCurrentPage + direction;
+        
+        if (newPage >= 1 && newPage <= totalPages) {
+            selectedCurrentPage = newPage;
+            renderSelectedTable();
+        }
+    };
+    
     // Load dropdown options
     async function loadDropdownOptions() {
         try {
@@ -381,10 +913,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 throw new Error(data.error || 'Failed to load dropdown data');
             }
             
-            console.log('Dropdown data loaded:', data);
-            console.log('Statuses:', data.statuses);
-            console.log('Namespaces:', data.namespaces);
-            
             populateSelect(statusSelect, data.statuses);
             populateSelect(namespaceSelect, data.namespaces);
             
@@ -392,7 +920,9 @@ document.addEventListener('DOMContentLoaded', function() {
             console.error('Error loading dropdown options:', error);
             showAlert('Failed to load dropdown options', 'error');
         }
-    }    function populateSelect(selectElement, options) {
+    }
+    
+    function populateSelect(selectElement, options) {
         // Clear existing options except the first one
         const firstOption = selectElement.querySelector('option[value=""]');
         selectElement.innerHTML = '';
@@ -427,244 +957,6 @@ document.addEventListener('DOMContentLoaded', function() {
         if (defaultOptionElement) {
             defaultOptionElement.selected = true;
             selectElement.value = defaultOptionElement.value;
-        }
-    }
-    
-    // Search devices function
-    async function searchDevices(pattern) {
-        try {
-            const response = await fetch('/api/search-devices', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ pattern: pattern })
-            });
-            
-            const data = await response.json();
-            loadingSpinner.style.display = 'none';
-            
-            if (!response.ok) {
-                showAlert(data.error || 'Search failed', 'error');
-                return;
-            }
-            
-            updateDevicesTable(data.devices);
-            
-        } catch (error) {
-            loadingSpinner.style.display = 'none';
-            showAlert('Network error occurred during search', 'error');
-            console.error('Search error:', error);
-        }
-    }
-    
-    // Update devices table with pagination
-    function updateDevicesTable(devices) {
-        // Get currently selected devices to preserve them
-        const currentlySelected = getSelectedDevices();
-        
-        // Combine new devices with currently selected devices (to preserve selected ones)
-        const selectedDeviceIds = new Set(currentlySelected.map(d => d.id));
-        const newDeviceIds = new Set(devices.map(d => d.id));
-        
-        // Keep selected devices that are not in the new search results
-        const selectedToKeep = currentlySelected.filter(device => !newDeviceIds.has(device.id));
-        
-        // Combine selected devices to keep with new search results
-        const combinedDevices = [...selectedToKeep, ...devices];
-        
-        // Remove duplicates (in case a selected device is also in search results)
-        const uniqueDevices = [];
-        const seenIds = new Set();
-        
-        combinedDevices.forEach(device => {
-            if (!seenIds.has(device.id)) {
-                uniqueDevices.push(device);
-                seenIds.add(device.id);
-            }
-        });
-        
-        // Store all devices for pagination
-        allDevices = uniqueDevices;
-        filteredDevices = [...uniqueDevices];
-        currentPage = 1; // Reset to first page
-        
-        renderTablePage();
-    }
-    
-    // Render current page of the table
-    function renderTablePage() {
-        // Get currently selected devices to preserve selections
-        const currentlySelected = getSelectedDevices();
-        
-        // Calculate pagination values
-        const totalDevices = filteredDevices.length;
-        const totalPages = Math.ceil(totalDevices / ITEMS_PER_PAGE);
-        const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-        const endIndex = Math.min(startIndex + ITEMS_PER_PAGE, totalDevices);
-        const pageDevices = filteredDevices.slice(startIndex, endIndex);
-        
-        // Clear table except selected rows that are not on current page
-        devicesTableBody.innerHTML = '';
-        
-        // Add devices for current page
-        pageDevices.forEach(device => {
-            const row = document.createElement('tr');
-            row.className = 'device-row';
-            row.setAttribute('data-device-id', device.id);
-            row.setAttribute('data-device-name', device.name);
-            
-            // Check if this device was previously selected
-            const wasSelected = selectedDevicesGlobal.has(device.id);
-            
-            row.innerHTML = `
-                <td>
-                    <div class="form-check">
-                        <input class="form-check-input device-checkbox" 
-                               type="checkbox" 
-                               value="${device.id}"
-                               data-device-name="${device.name}"
-                               ${wasSelected ? 'checked' : ''}>
-                    </div>
-                </td>
-                <td><strong>${device.name}</strong></td>
-                <td>${device.primary_ip4 ? device.primary_ip4.address : '<span class="text-muted">N/A</span>'}</td>
-                <td>${device.location ? device.location.name : '<span class="text-muted">N/A</span>'}</td>
-                <td>${device.role ? device.role.name : '<span class="text-muted">N/A</span>'}</td>
-                <td><span class="status-badge bg-primary text-white">${device.status ? device.status.name : 'Unknown'}</span></td>
-            `;
-            
-            devicesTableBody.appendChild(row);
-            
-            // Add event listener for checkbox
-            const checkbox = row.querySelector('.device-checkbox');
-            checkbox.addEventListener('change', () => updateCheckboxSelection(checkbox));
-        });
-        
-        // Show "no devices" message if no devices found
-        if (totalDevices === 0) {
-            const noDevicesRow = document.createElement('tr');
-            noDevicesRow.className = 'no-devices';
-            noDevicesRow.innerHTML = `
-                <td colspan="6" class="text-center py-4 text-muted">
-                    <i class="bi bi-search me-2"></i>
-                    No devices found. Try a different search term.
-                </td>
-            `;
-            devicesTableBody.appendChild(noDevicesRow);
-        }
-        
-        // Update pagination controls
-        updatePaginationControls(totalDevices, totalPages, startIndex, endIndex);
-        
-        // Update selected count
-        updateSelectedCount();
-    }
-    
-    // Update pagination controls
-    function updatePaginationControls(totalDevices, totalPages, startIndex, endIndex) {
-        // Update pagination info
-        document.getElementById('pageStart').textContent = totalDevices > 0 ? startIndex + 1 : 0;
-        document.getElementById('pageEnd').textContent = endIndex;
-        document.getElementById('totalDevices').textContent = totalDevices;
-        
-        // Update previous/next buttons
-        const prevBtn = document.getElementById('prevPageBtn');
-        const nextBtn = document.getElementById('nextPageBtn');
-        
-        prevBtn.disabled = currentPage <= 1;
-        nextBtn.disabled = currentPage >= totalPages;
-        
-        // Update page numbers
-        const pageNumbersContainer = document.getElementById('pageNumbers');
-        pageNumbersContainer.innerHTML = '';
-        
-        if (totalPages <= 1) return; // Don't show page numbers for single page
-        
-        // Calculate page range to show
-        const maxVisiblePages = 5;
-        let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
-        let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
-        
-        // Adjust start page if we're near the end
-        if (endPage - startPage < maxVisiblePages - 1) {
-            startPage = Math.max(1, endPage - maxVisiblePages + 1);
-        }
-        
-        for (let i = startPage; i <= endPage; i++) {
-            const pageBtn = document.createElement('button');
-            pageBtn.className = `page-btn ${i === currentPage ? 'active' : ''}`;
-            pageBtn.textContent = i;
-            pageBtn.onclick = () => goToPage(i);
-            pageNumbersContainer.appendChild(pageBtn);
-        }
-    }
-    
-    // Change page function
-    function changePage(direction) {
-        const totalPages = Math.ceil(filteredDevices.length / ITEMS_PER_PAGE);
-        const newPage = currentPage + direction;
-        
-        if (newPage >= 1 && newPage <= totalPages) {
-            currentPage = newPage;
-            renderTablePage();
-        }
-    }
-    
-    // Go to specific page
-    function goToPage(page) {
-        const totalPages = Math.ceil(filteredDevices.length / ITEMS_PER_PAGE);
-        
-        if (page >= 1 && page <= totalPages) {
-            currentPage = page;
-            renderTablePage();
-        }
-    }
-    
-    // Get selected devices (now works across all pages by storing selections)
-    let selectedDevicesGlobal = new Set(); // Store selected device IDs globally
-    // Get selected devices (now works across all pages)
-    function getSelectedDevices() {
-        // Get selected devices from all pages, not just current page
-        return allDevices.filter(device => selectedDevicesGlobal.has(device.id));
-    }
-    
-    // Update checkbox event listener to use global selection storage
-    function updateCheckboxSelection(checkbox) {
-        const deviceId = checkbox.value;
-        
-        if (checkbox.checked) {
-            selectedDevicesGlobal.add(deviceId);
-        } else {
-            selectedDevicesGlobal.delete(deviceId);
-        }
-        
-        updateSelectedCount();
-    }
-    
-    // Update selected count
-    function updateSelectedCount() {
-        const selectedDevices = getSelectedDevices();
-        const count = selectedDevices.length;
-        
-        selectedCountSpan.textContent = count;
-        syncButton.disabled = count === 0;
-        
-        // Update select all checkbox state for current page
-        const currentPageCheckboxes = devicesTableBody.querySelectorAll('.device-checkbox');
-        const currentPageCheckedCount = Array.from(currentPageCheckboxes).filter(cb => cb.checked).length;
-        
-        if (currentPageCheckboxes.length === 0) {
-            selectAllCheckbox.indeterminate = false;
-            selectAllCheckbox.checked = false;
-        } else if (currentPageCheckedCount === currentPageCheckboxes.length) {
-            selectAllCheckbox.indeterminate = false;
-            selectAllCheckbox.checked = true;
-        } else if (currentPageCheckedCount > 0) {
-            selectAllCheckbox.indeterminate = true;
-        } else {
-            selectAllCheckbox.indeterminate = false;
-            selectAllCheckbox.checked = false;
         }
     }
     
@@ -707,7 +999,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 showAlert(`Failed to sync ${summary.failed} devices. Check logs for details.`, 'warning');
             }
             
-            // Log detailed results
             console.log('Sync results:', data.results);
             
         } catch (error) {
@@ -715,14 +1006,13 @@ document.addEventListener('DOMContentLoaded', function() {
             console.error('Sync error:', error);
         } finally {
             syncButton.disabled = false;
-            syncButton.innerHTML = '<i class="bi bi-arrow-clockwise me-2"></i>Sync Selected Devices (<span id="selectedCount">0</span>)';
+            syncButton.innerHTML = '<i class="bi bi-arrow-clockwise me-2"></i>Sync Selected Devices';
             updateSelectedCount();
         }
     }
     
     // Show alert function
     function showAlert(message, type) {
-        // Create alert element
         const alertDiv = document.createElement('div');
         alertDiv.className = `alert alert-${type === 'error' ? 'danger' : type} alert-dismissible fade show`;
         alertDiv.innerHTML = `
@@ -731,11 +1021,9 @@ document.addEventListener('DOMContentLoaded', function() {
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         `;
         
-        // Insert at top of content
         const content = document.querySelector('.container-fluid');
         content.insertBefore(alertDiv, content.firstChild);
         
-        // Auto dismiss after 5 seconds
         setTimeout(() => {
             if (alertDiv.parentNode) {
                 alertDiv.remove();
