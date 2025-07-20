@@ -319,6 +319,7 @@
                         <option value="name">Name</option>
                         <option value="location">Location</option>
                         <option value="tag">Tag</option>
+                        <option value="prefix">Prefix</option>
                     </select>
                 </div>
                 <div class="col-md-9">
@@ -340,7 +341,7 @@
         <div class="col-md-4 text-end">
             <p class="mb-0 text-muted">
                 <i class="bi bi-info-circle me-2"></i>
-                Use Name, Location or Tag
+                Use Name, Location, Tag or Prefix
             </p>
         </div>
     </div>
@@ -1135,6 +1136,8 @@ document.addEventListener('DOMContentLoaded', function() {
             deviceSearch.placeholder = 'Enter location name pattern (min. 3 characters)...';
         } else if (currentSearchType === 'tag') {
             deviceSearch.placeholder = 'Enter tag name (min. 3 characters)...';
+        } else if (currentSearchType === 'prefix') {
+            deviceSearch.placeholder = 'Enter IP prefix (e.g., 192.168.1.0/24)...';
         } else {
             deviceSearch.placeholder = 'Enter device name pattern (min. 3 characters)...';
         }

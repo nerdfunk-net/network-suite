@@ -678,6 +678,103 @@ def search_devices_by_tag(tag_pattern: str) -> list[dict[str, any]]:
         raise
 
 
+def search_devices_by_prefix(prefix_pattern: str) -> list[dict[str, any]]:
+    """Search for devices by IP prefix using GraphQL query.
+    
+    Args:
+        prefix_pattern: IP prefix to match devices (e.g., '192.168.1.0/24').
+        
+    Returns:
+        List of device dictionaries with name, id, role, location, primary_ip4, and status.
+        
+    Raises:
+        Exception: If unable to query Nautobot devices.
+    """
+    try:
+        # Prepare GraphQL query for prefix-based device search
+        query = """
+        query devices_by_ip_prefix($prefix_filter: [String]) {
+            prefixes(within_include: $prefix_filter) {
+                prefix
+                ip_addresses {
+                    primary_ip4_for {
+                        name
+                        id
+                        role {
+                            name
+                        }
+                        location {
+                            name
+                        }
+                        primary_ip4 {
+                            address
+                        }
+                        status {
+                            name
+                        }
+                    }
+                }
+            }
+        }
+        """
+        
+        # Prepare variables
+        variables = {
+            "prefix_filter": [prefix_pattern]
+        }
+        
+        # Prepare the payload
+        payload = {
+            "query": query,
+            "variables": variables
+        }
+        
+        # Set up headers
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Token {NAUTOBOT_API_TOKEN}"
+        }
+        
+        # Make the GraphQL request
+        url = f"{NAUTOBOT_URL}/api/graphql/"
+        response = requests.post(url, headers=headers, json=payload)
+        
+        if response.status_code != 200:
+            logger.error(f"GraphQL query failed: {response.status_code} - {response.text}")
+            raise Exception(f"GraphQL query failed with status {response.status_code}")
+        
+        result = response.json()
+        
+        # Check if there are any errors in the GraphQL response
+        if 'errors' in result:
+            logger.error(f"GraphQL errors: {result['errors']}")
+            raise Exception(f"GraphQL query errors: {result['errors']}")
+        
+        # Parse the response and flatten the nested device structure
+        data = result.get('data', {})
+        prefixes = data.get('prefixes', [])
+        
+        # Flatten devices from all matching prefixes
+        all_devices = []
+        for prefix in prefixes:
+            ip_addresses = prefix.get('ip_addresses', [])
+            for ip_addr in ip_addresses:
+                primary_ip4_for = ip_addr.get('primary_ip4_for')
+                if primary_ip4_for:
+                    # primary_ip4_for is a list, so we need to iterate through it
+                    if isinstance(primary_ip4_for, list):
+                        all_devices.extend(primary_ip4_for)
+                    else:
+                        all_devices.append(primary_ip4_for)
+        
+        logger.info(f"Retrieved {len(all_devices)} devices from prefix '{prefix_pattern}'")
+        return all_devices
+            
+    except Exception as e:
+        logger.error(f"Error searching devices by prefix '{prefix_pattern}' via GraphQL: {e}")
+        raise
+
+
 def search_devices_by_regex(regex_pattern: str) -> list[dict[str, any]]:
     """Search for devices in Nautobot using regex pattern via GraphQL query.
     
@@ -1175,6 +1272,8 @@ def api_search_devices():
             devices = search_devices_by_location(pattern)
         elif search_type == 'tag':
             devices = search_devices_by_tag(pattern)
+        elif search_type == 'prefix':
+            devices = search_devices_by_prefix(pattern)
         else:  # default to name search
             devices = search_devices_by_regex(pattern)
             
