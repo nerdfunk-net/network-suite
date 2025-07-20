@@ -590,9 +590,17 @@ document.addEventListener('DOMContentLoaded', function() {
         clearTimeout(searchTimeout);
         
         if (query.length < 3) {
+            clearRegexError();
             return;
         }
         
+        // Validate regular expression
+        if (!isValidRegex(query)) {
+            showRegexError('Invalid regular expression pattern. Please check your syntax.');
+            return;
+        }
+        
+        clearRegexError();
         loadingSpinner.style.display = 'block';
         searchTimeout = setTimeout(() => {
             searchDevicesAPI(query);
@@ -1029,6 +1037,52 @@ document.addEventListener('DOMContentLoaded', function() {
                 alertDiv.remove();
             }
         }, 5000);
+    }
+    
+    // Regular expression validation functions
+    function isValidRegex(pattern) {
+        try {
+            new RegExp(pattern);
+            return true;
+        } catch (e) {
+            return false;
+        }
+    }
+    
+    function showRegexError(message) {
+        clearRegexError();
+        
+        const errorDiv = document.createElement('div');
+        errorDiv.id = 'regex-error';
+        errorDiv.className = 'alert alert-danger mt-2 mb-0';
+        errorDiv.innerHTML = `
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+            ${message}
+        `;
+        
+        const searchContainer = document.querySelector('.search-container');
+        searchContainer.appendChild(errorDiv);
+        
+        // Hide loading spinner if showing
+        loadingSpinner.style.display = 'none';
+        
+        // Clear search results
+        searchTableBody.innerHTML = `
+            <tr>
+                <td colspan="6" class="text-center text-muted py-4">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    Please fix the regular expression error above
+                </td>
+            </tr>
+        `;
+        updateSearchPagination();
+    }
+    
+    function clearRegexError() {
+        const existingError = document.getElementById('regex-error');
+        if (existingError) {
+            existingError.remove();
+        }
     }
 });
 </script>
