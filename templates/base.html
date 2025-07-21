@@ -45,6 +45,8 @@
             transition: all 0.3s ease;
             border: none;
             background: none;
+            width: 100%;
+            cursor: pointer;
         }
         
         .nav-link:hover {
@@ -62,6 +64,38 @@
         .nav-link i {
             width: 20px;
             margin-right: 0.75rem;
+        }
+        
+        /* Submenu styles */
+        .nav-submenu {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 0;
+            border-left: 2px solid rgba(255, 255, 255, 0.1);
+            margin-left: 1rem;
+        }
+        
+        .nav-submenu .nav-link {
+            padding: 0.5rem 1rem 0.5rem 2rem;
+            font-size: 0.9rem;
+        }
+        
+        .nav-submenu .nav-link:hover {
+            background: rgba(255, 255, 255, 0.15);
+            transform: translateX(3px);
+        }
+        
+        .nav-submenu .nav-link.active {
+            background: linear-gradient(90deg, #17a2b8, #138496);
+            border-left: 2px solid #ffffff;
+        }
+        
+        .collapse-arrow {
+            margin-left: auto;
+            transition: transform 0.3s ease;
+        }
+        
+        .collapsed .collapse-arrow {
+            transform: rotate(-90deg);
         }
         
         .main-content {
@@ -87,6 +121,34 @@
             align-items: center;
             gap: 0.5rem;
             white-space: nowrap;
+        }
+        
+        /* Active jobs indicator */
+        .active-jobs-indicator {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1050;
+            background: linear-gradient(135deg, #fd7e14, #e85d04);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            box-shadow: 0 4px 15px rgba(253, 126, 20, 0.3);
+            font-size: 0.9rem;
+            display: none;
+            animation: pulse 2s infinite;
+        }
+        
+        .active-jobs-indicator.show {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        @keyframes pulse {
+            0% { box-shadow: 0 4px 15px rgba(253, 126, 20, 0.3); }
+            50% { box-shadow: 0 4px 20px rgba(253, 126, 20, 0.5); }
+            100% { box-shadow: 0 4px 15px rgba(253, 126, 20, 0.3); }
         }
         
         .main-card {
@@ -119,11 +181,16 @@
         .mobile-menu-btn {
             display: none;
         }
-        
-        {% block extra_css %}{% endblock %}
     </style>
+    {% block extra_css %}{% endblock %}
 </head>
 <body>
+    <!-- Active Jobs Indicator -->
+    <div id="activeJobsIndicator" class="active-jobs-indicator">
+        <i class="bi bi-gear-fill"></i>
+        <span id="activeJobsText">0 jobs running</span>
+    </div>
+
     <!-- Sidebar -->
     <nav class="sidebar" id="sidebar">
         <div class="sidebar-header">
@@ -135,15 +202,32 @@
         </div>
         
         <div class="sidebar-nav">
-            <a href="{{ url_for('index') }}" class="nav-link {% if request.endpoint == 'index' or request.endpoint == 'onboard_device' %}active{% endif %}">
-                <i class="bi bi-router"></i>
-                <span>Device Onboarding</span>
+            <!-- Dashboard -->
+            <a href="{{ url_for('index') }}" class="nav-link {% if request.endpoint == 'index' and request.endpoint != 'onboard_device' %}active{% endif %}">
+                <i class="bi bi-speedometer2"></i>
+                <span>Dashboard</span>
             </a>
             
-            <a href="{{ url_for('sync_device') }}" class="nav-link {% if request.endpoint == 'sync_device' %}active{% endif %}">
-                <i class="bi bi-arrow-repeat"></i>
-                <span>Sync Devices</span>
-            </a>
+            <!-- Onboarding with Submenus -->
+            <div class="nav-item">
+                <button class="nav-link collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#onboardingSubmenu" aria-expanded="false" aria-controls="onboardingSubmenu">
+                    <i class="bi bi-gear-wide"></i>
+                    <span>Onboarding</span>
+                    <i class="bi bi-chevron-down collapse-arrow"></i>
+                </button>
+                
+                <div class="collapse nav-submenu" id="onboardingSubmenu">
+                    <a href="{{ url_for('onboard_device') }}" class="nav-link {% if request.endpoint == 'onboard_device' %}active{% endif %}">
+                        <i class="bi bi-router"></i>
+                        <span>Device Onboarding</span>
+                    </a>
+                    
+                    <a href="{{ url_for('sync_device') }}" class="nav-link {% if request.endpoint == 'sync_device' %}active{% endif %}">
+                        <i class="bi bi-arrow-repeat"></i>
+                        <span>Sync Devices</span>
+                    </a>
+                </div>
+            </div>
             
             <hr class="my-3 mx-3" style="border-color: rgba(255,255,255,0.2);">
             
@@ -226,6 +310,93 @@
             
             if (window.innerWidth <= 768 && !sidebar.contains(event.target) && !menuBtn.contains(event.target)) {
                 sidebar.classList.remove('show');
+            }
+        });
+        
+        // Auto-expand submenu if it contains an active link
+        document.addEventListener('DOMContentLoaded', function() {
+            const activeSubmenuLinks = document.querySelectorAll('.nav-submenu .nav-link.active');
+            
+            activeSubmenuLinks.forEach(function(activeLink) {
+                // Find the parent submenu collapse element
+                const submenu = activeLink.closest('.collapse');
+                if (submenu) {
+                    // Show the submenu
+                    submenu.classList.add('show');
+                    
+                    // Find the toggle button and update its state
+                    const toggleButton = document.querySelector(`[data-bs-target="#${submenu.id}"]`);
+                    if (toggleButton) {
+                        toggleButton.classList.remove('collapsed');
+                        toggleButton.setAttribute('aria-expanded', 'true');
+                    }
+                }
+            });
+            
+            // Start monitoring active jobs
+            startActiveJobsMonitoring();
+        });
+        
+        // Active Jobs Monitoring
+        let activeJobsInterval = null;
+        
+        function startActiveJobsMonitoring() {
+            // Check immediately
+            checkActiveJobs();
+            
+            // Then check every 10 seconds
+            activeJobsInterval = setInterval(checkActiveJobs, 10000);
+        }
+        
+        async function checkActiveJobs() {
+            try {
+                const response = await fetch('/api/active-jobs');
+                if (!response.ok) return;
+                
+                const data = await response.json();
+                const activeCount = data.active_jobs || 0;
+                
+                updateActiveJobsIndicator(activeCount);
+            } catch (error) {
+                console.warn('Error checking active jobs:', error);
+            }
+        }
+        
+        function updateActiveJobsIndicator(count) {
+            const indicator = document.getElementById('activeJobsIndicator');
+            const text = document.getElementById('activeJobsText');
+            
+            if (count > 0) {
+                text.textContent = `${count} job${count === 1 ? '' : 's'} running`;
+                indicator.classList.add('show');
+            } else {
+                indicator.classList.remove('show');
+            }
+        }
+        
+        // Stop monitoring when page is about to unload
+        window.addEventListener('beforeunload', function() {
+            if (activeJobsInterval) {
+                clearInterval(activeJobsInterval);
+            }
+        });
+        
+        // Global notification system
+        function showNotification(message, type = 'info', duration = 5000) {
+            // Check if browser supports notifications
+            if ('Notification' in window && Notification.permission === 'granted') {
+                new Notification('nerdfunk network suite', {
+                    body: message,
+                    icon: '/static/favicon.ico',
+                    tag: 'nerdfunk-notification'
+                });
+            }
+        }
+        
+        // Request notification permission on first visit
+        document.addEventListener('DOMContentLoaded', function() {
+            if ('Notification' in window && Notification.permission === 'default') {
+                Notification.requestPermission();
             }
         });
     </script>

@@ -301,6 +301,38 @@
             justify-content: center;
         }
     }
+    
+    /* Progress Modal Enhancements */
+    .job-status-item {
+        background: #f8f9fa;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        border-left: 4px solid #007bff;
+    }
+    
+    .job-status-item .badge {
+        font-size: 0.8rem;
+        padding: 0.5rem 0.8rem;
+    }
+    
+    .progress {
+        border-radius: 10px;
+        overflow: hidden;
+    }
+    
+    .progress-bar {
+        transition: width 0.5s ease;
+        border-radius: 10px;
+    }
+    
+    .modal-header {
+        background: linear-gradient(135deg, #007bff, #0056b3);
+        color: white;
+    }
+    
+    .modal-header .btn-close {
+        filter: invert(1);
+    }
 </style>
 {% endblock %}
 
@@ -1012,12 +1044,20 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
     
-    // Sync selected devices
+    // Sync selected devices with progress tracking
     async function syncSelectedDevices(devices, statusId, namespaceId, syncCables, syncSoftware, syncVlans, syncVrfs) {
         syncButton.disabled = true;
         syncButton.innerHTML = '<div class="spinner-border spinner-border-sm me-2"></div>Syncing...';
         
+        let jobIds = [];
+        let completedJobs = 0;
+        
         try {
+            // Start timeout timer (15 minutes)
+            const timeoutId = setTimeout(() => {
+                showAlert('Sync operation is taking longer than expected. Jobs may still be running in the background.', 'warning');
+            }, 15 * 60 * 1000); // 15 minutes
+            
             const response = await fetch('/api/sync-devices', {
                 method: 'POST',
                 headers: {
@@ -1031,20 +1071,37 @@ document.addEventListener('DOMContentLoaded', function() {
                     sync_software_version: syncSoftware,
                     sync_vlans: syncVlans,
                     sync_vrfs: syncVrfs
-                })
+                }),
+                signal: AbortSignal.timeout(30000) // 30 second timeout for initial request
             });
             
             const data = await response.json();
+            clearTimeout(timeoutId);
             
             if (!response.ok) {
                 showAlert(data.error || 'Sync failed', 'error');
                 return;
             }
             
-            // Show results
+            // Extract job IDs for progress tracking
+            jobIds = data.results
+                .filter(result => result.status === 'success' && result.job_id && result.job_id !== 'Unknown')
+                .map(result => ({ jobId: result.job_id, device: result.device }));
+            
+            console.log('Extracted job IDs for tracking:', jobIds);
+            
+            // Show initial results
             const summary = data.summary;
             if (summary.successful > 0) {
                 showAlert(`Successfully initiated sync for ${summary.successful} of ${summary.total} devices.`, 'success');
+                
+                // Show progress modal if we have jobs to track
+                if (jobIds.length > 0) {
+                    console.log('Showing progress modal for', jobIds.length, 'jobs');
+                    showProgressModal(jobIds);
+                } else {
+                    console.log('No valid job IDs found for progress tracking');
+                }
             }
             
             if (summary.failed > 0) {
@@ -1054,13 +1111,179 @@ document.addEventListener('DOMContentLoaded', function() {
             console.log('Sync results:', data.results);
             
         } catch (error) {
-            showAlert('Network error occurred during sync', 'error');
+            if (error.name === 'TimeoutError') {
+                showAlert('Request timed out. Jobs may still be running in the background.', 'warning');
+            } else if (error.name === 'AbortError') {
+                showAlert('Request was cancelled due to timeout', 'error');
+            } else {
+                showAlert('Network error occurred during sync', 'error');
+            }
             console.error('Sync error:', error);
         } finally {
             syncButton.disabled = false;
             syncButton.innerHTML = '<i class="bi bi-arrow-clockwise me-2"></i>Sync Selected Devices';
             updateSelectedCount();
         }
+    }
+    
+    // Show progress modal for job tracking
+    function showProgressModal(jobIds) {
+        console.log('showProgressModal called with:', jobIds);
+        
+        // Create progress modal
+        const modalHtml = `
+            <div class="modal fade" id="progressModal" tabindex="-1" aria-labelledby="progressModalLabel" aria-hidden="true">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="progressModalLabel">
+                                <i class="bi bi-gear-fill me-2"></i>Sync Progress
+                            </h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="mb-3">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span>Overall Progress</span>
+                                    <span id="overallProgressText">0 of ${jobIds.length} completed</span>
+                                </div>
+                                <div class="progress mb-3" style="height: 20px;">
+                                    <div id="overallProgressBar" class="progress-bar progress-bar-striped progress-bar-animated" 
+                                         role="progressbar" style="width: 0%"></div>
+                                </div>
+                            </div>
+                            <div id="jobStatusList">
+                                ${jobIds.map(job => `
+                                    <div class="job-status-item mb-3" data-job-id="${job.jobId}">
+                                        <div class="d-flex justify-content-between align-items-center mb-1">
+                                            <strong>${job.device}</strong>
+                                            <span class="badge bg-warning">Pending</span>
+                                        </div>
+                                        <div class="progress" style="height: 10px;">
+                                            <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                                                 role="progressbar" style="width: 10%"></div>
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                            <button type="button" class="btn btn-primary" id="refreshProgressBtn">
+                                <i class="bi bi-arrow-clockwise"></i> Refresh
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Remove existing modal if present
+        const existingModal = document.getElementById('progressModal');
+        if (existingModal) {
+            existingModal.remove();
+        }
+        
+        // Add modal to DOM
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        
+        // Show modal
+        const modal = new bootstrap.Modal(document.getElementById('progressModal'));
+        modal.show();
+        
+        // Start progress tracking
+        startProgressTracking(jobIds);
+        
+        // Add refresh button handler
+        document.getElementById('refreshProgressBtn').addEventListener('click', () => {
+            updateJobProgress(jobIds);
+        });
+    }
+    
+    // Start progress tracking
+    function startProgressTracking(jobIds) {
+        const progressInterval = setInterval(async () => {
+            const allCompleted = await updateJobProgress(jobIds);
+            
+            if (allCompleted) {
+                clearInterval(progressInterval);
+                showNotification('All sync jobs completed!', 'success');
+                
+                // Auto-close modal after 3 seconds
+                setTimeout(() => {
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('progressModal'));
+                    if (modal) {
+                        modal.hide();
+                    }
+                }, 3000);
+            }
+        }, 5000); // Check every 5 seconds
+        
+        // Store interval ID to clear it when modal is closed
+        const modal = document.getElementById('progressModal');
+        modal.addEventListener('hidden.bs.modal', () => {
+            clearInterval(progressInterval);
+        });
+    }
+    
+    // Update job progress
+    async function updateJobProgress(jobIds) {
+        let completedCount = 0;
+        
+        for (const job of jobIds) {
+            try {
+                const response = await fetch(`/api/job-status/${job.jobId}`);
+                if (!response.ok) continue;
+                
+                const data = await response.json();
+                const jobElement = document.querySelector(`[data-job-id="${job.jobId}"]`);
+                if (!jobElement) continue;
+                
+                const badge = jobElement.querySelector('.badge');
+                const progressBar = jobElement.querySelector('.progress-bar');
+                
+                // Update status badge
+                if (data.is_finished) {
+                    completedCount++;
+                    if (data.status.toLowerCase() === 'completed' || data.status.toLowerCase() === 'success') {
+                        badge.className = 'badge bg-success';
+                        badge.textContent = 'Completed';
+                        progressBar.style.width = '100%';
+                        progressBar.className = 'progress-bar bg-success';
+                    } else {
+                        badge.className = 'badge bg-danger';
+                        badge.textContent = 'Failed';
+                        progressBar.style.width = '100%';
+                        progressBar.className = 'progress-bar bg-danger';
+                    }
+                } else {
+                    badge.className = 'badge bg-primary';
+                    badge.textContent = 'Running';
+                    progressBar.style.width = `${data.progress}%`;
+                }
+                
+            } catch (error) {
+                console.warn(`Error checking job ${job.jobId}:`, error);
+            }
+        }
+        
+        // Update overall progress
+        const overallProgress = (completedCount / jobIds.length) * 100;
+        const overallProgressBar = document.getElementById('overallProgressBar');
+        const overallProgressText = document.getElementById('overallProgressText');
+        
+        if (overallProgressBar) {
+            overallProgressBar.style.width = `${overallProgress}%`;
+            if (completedCount === jobIds.length) {
+                overallProgressBar.className = 'progress-bar bg-success';
+            }
+        }
+        
+        if (overallProgressText) {
+            overallProgressText.textContent = `${completedCount} of ${jobIds.length} completed`;
+        }
+        
+        return completedCount === jobIds.length;
     }
     
     // Show alert function

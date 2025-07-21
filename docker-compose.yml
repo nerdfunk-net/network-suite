@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  nerdfunk-app:
+    build: .
+    ports:
+      - "5003:5003"
+    volumes:
+      # Mount config files
+      - ./config.json:/app/config.json:ro
+      - ./usernames.txt:/app/usernames.txt:ro
+      - ./passwords.txt:/app/passwords.txt:ro
+    environment:
+      - FLASK_ENV=production
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5003/login"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - nerdfunk-network
+
+networks:
+  nerdfunk-network:
+    driver: bridge

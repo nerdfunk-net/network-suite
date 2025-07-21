@@ -107,11 +107,74 @@ pip install -r requirements.txt
 
 ## Running the Application
 
+### Local Development
+
 ```bash
 python app.py
 ```
 
 The application will be available at `http://127.0.0.1:5003` (or the host:port configured in your `config.json`)
+
+### Docker Deployment
+
+You can run the application in a Docker container for easier deployment and isolation.
+
+#### Prerequisites
+
+Make sure you have the following files in your project directory:
+- `config.json` (with your Nautobot configuration)
+- `usernames.txt` (user authentication file)
+- `passwords.txt` (password authentication file)
+
+#### Option 1: Docker Compose (Recommended)
+
+The easiest way to run the application is using Docker Compose:
+
+```bash
+# Build and start the container
+docker-compose up -d
+
+# View application logs
+docker-compose logs -f nerdfunk-app
+
+# Stop the container
+docker-compose down
+```
+
+#### Option 2: Docker Commands
+
+Alternatively, you can use Docker commands directly:
+
+```bash
+# Build the Docker image
+docker build -t nerdfunk-app .
+
+# Run the container
+docker run -d \
+  --name nerdfunk-app \
+  -p 5003:5003 \
+  -v $(pwd)/config.json:/app/config.json:ro \
+  -v $(pwd)/usernames.txt:/app/usernames.txt:ro \
+  -v $(pwd)/passwords.txt:/app/passwords.txt:ro \
+  nerdfunk-app
+
+# View container logs
+docker logs -f nerdfunk-app
+
+# Stop and remove the container
+docker stop nerdfunk-app
+docker rm nerdfunk-app
+```
+
+#### Docker Features
+
+- **Alpine Linux**: Lightweight base image (~50MB)
+- **Security**: Runs as non-root user
+- **Health Checks**: Automatic container health monitoring
+- **Volume Mounts**: Configuration files mounted from host
+- **Production Ready**: Optimized for production deployment
+
+The containerized application will be available at `http://localhost:5003`
 
 ## Usage
 

@@ -1,0 +1,1406 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - nerdfunk network suite{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block extra_css %}
+<style>
+    .dashboard-container {
+        position: relative;
+        min-height: 80vh;
+        height: auto; /* Allow container to grow */
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border-radius: 1rem;
+        padding: 2rem;
+        overflow: visible; /* Allow widgets to be moved outside initial bounds */
+        /* Subtle dot grid instead of lines */
+        background-image: 
+            radial-gradient(circle, rgba(0,123,255,0.15) 1px, transparent 1px);
+        background-size: 20px 20px;
+        background-position: 10px 10px;
+    }
+    
+    /* Alignment guides that appear during dragging */
+    .alignment-guide {
+        position: absolute;
+        background: rgba(0, 123, 255, 0.6);
+        pointer-events: none;
+        z-index: 999;
+        transition: opacity 0.2s ease;
+    }
+    
+    .alignment-guide.vertical {
+        width: 2px;
+        height: 100%;
+        top: 0;
+    }
+    
+    .alignment-guide.horizontal {
+        height: 2px;
+        width: 100%;
+        left: 0;
+    }
+    
+    .alignment-guide.fade-out {
+        opacity: 0;
+    }
+    
+    .canvas-widget {
+        position: absolute;
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        border-radius: 1rem;
+        cursor: move;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        user-select: none;
+        overflow: hidden;
+    }
+    
+    .canvas-widget:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+    }
+    
+    .canvas-widget.dragging {
+        transform: rotate(1deg);
+        z-index: 1000;
+        box-shadow: 0 16px 50px rgba(0, 0, 0, 0.25);
+    }
+    
+    .canvas-widget.magnetically-aligned {
+        border: 2px solid rgba(0, 123, 255, 0.5);
+        box-shadow: 0 0 20px rgba(0, 123, 255, 0.3);
+        transition: all 0.2s ease;
+    }
+    
+    .canvas-widget.collision-target {
+        border: 2px solid #007bff;
+        background: rgba(0, 123, 255, 0.1);
+        transform: scale(1.02);
+        transition: all 0.2s ease;
+    }
+    
+    /* Resize handles */
+    .resize-handle {
+        position: absolute;
+        background: rgba(0, 123, 255, 0.7);
+        z-index: 1001;
+        opacity: 0;
+        transition: opacity 0.2s ease;
+    }
+    
+    .canvas-widget:hover .resize-handle {
+        opacity: 1;
+    }
+    
+    .resize-handle.resizing {
+        opacity: 1;
+        background: rgba(0, 123, 255, 0.9);
+    }
+    
+    /* Corner resize handles */
+    .resize-se {
+        width: 12px;
+        height: 12px;
+        bottom: -1px;
+        right: -1px;
+        cursor: nw-resize;
+        border-radius: 0 0 1rem 0;
+    }
+    
+    .resize-sw {
+        width: 12px;
+        height: 12px;
+        bottom: -1px;
+        left: -1px;
+        cursor: ne-resize;
+        border-radius: 0 0 0 1rem;
+    }
+    
+    .resize-ne {
+        width: 12px;
+        height: 12px;
+        top: -1px;
+        right: -1px;
+        cursor: sw-resize;
+        border-radius: 0 1rem 0 0;
+    }
+    
+    .resize-nw {
+        width: 12px;
+        height: 12px;
+        top: -1px;
+        left: -1px;
+        cursor: se-resize;
+        border-radius: 1rem 0 0 0;
+    }
+    
+    /* Edge resize handles */
+    .resize-n {
+        height: 6px;
+        top: -3px;
+        left: 12px;
+        right: 12px;
+        cursor: n-resize;
+    }
+    
+    .resize-s {
+        height: 6px;
+        bottom: -3px;
+        left: 12px;
+        right: 12px;
+        cursor: s-resize;
+    }
+    
+    .resize-e {
+        width: 6px;
+        right: -3px;
+        top: 12px;
+        bottom: 12px;
+        cursor: e-resize;
+    }
+    
+    .resize-w {
+        width: 6px;
+        left: -3px;
+        top: 12px;
+        bottom: 12px;
+        cursor: w-resize;
+    }
+    
+    .widget-header {
+        background: linear-gradient(135deg, #007bff, #0056b3);
+        color: white;
+        padding: 0.5rem 1rem;
+        cursor: move;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+    
+    .widget-content {
+        padding: 1.5rem;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        height: calc(100% - 60px); /* Account for header height */
+        min-height: 120px;
+    }
+    
+    .metric-value {
+        font-size: 2.5rem;
+        font-weight: bold;
+        color: #007bff;
+        margin: 0;
+        line-height: 1.2;
+        word-break: break-all;
+    }
+    
+    /* Responsive font sizing for large numbers */
+    .metric-value.large-number {
+        font-size: 2rem;
+    }
+    
+    .metric-value.very-large-number {
+        font-size: 1.5rem;
+    }
+    
+    .metric-label {
+        color: #6c757d;
+        font-size: 0.9rem;
+        margin-top: 0.5rem;
+    }
+    
+    .welcome-header {
+        text-align: center;
+        margin-bottom: 3rem;
+        padding: 2rem;
+        background: rgba(255, 255, 255, 0.9);
+        border-radius: 1rem;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    }
+    
+    .changes-list {
+        max-height: 250px;
+        overflow-y: auto;
+        width: 100%;
+    }
+    
+    .change-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.75rem;
+        border-bottom: 1px solid #e9ecef;
+        transition: background 0.2s ease;
+    }
+    
+    .change-item:hover {
+        background: #f8f9fa;
+    }
+    
+    .change-item:last-child {
+        border-bottom: none;
+    }
+    
+    .change-action {
+        font-weight: 700;
+        color: #007bff;
+        font-size: 1rem;
+        text-transform: capitalize;
+        margin-bottom: 0.25rem;
+    }
+    
+    .change-object {
+        color: #6c757d;
+        font-size: 0.9rem;
+        line-height: 1.3;
+        margin-top: 0.25rem;
+    }
+    
+    .change-time {
+        font-size: 0.8rem;
+        color: #adb5bd;
+    }
+    
+    .loading-spinner {
+        border: 4px solid #f3f4f6;
+        border-top: 4px solid #007bff;
+        border-radius: 50%;
+        width: 3rem;
+        height: 3rem;
+        animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+    
+    .widget-device-count {
+        min-width: 280px;
+        max-width: none; /* Remove max-width constraint */
+        min-height: 200px;
+        top: 50px;
+        left: 50px;
+    }
+    
+    .widget-device-count .widget-content {
+        padding: 1.5rem 1rem;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        height: calc(100% - 60px);
+        min-height: 120px;
+    }
+    
+    .widget-device-count .metric-value {
+        word-break: break-all;
+        line-height: 1.2;
+        flex-shrink: 0;
+    }
+    
+    .widget-recent-changes {
+        width: 400px;
+        height: 300px;
+        min-width: 300px;
+        min-height: 250px;
+        top: 50px;
+        right: 50px;
+    }
+    
+    .widget-system-status {
+        min-width: 300px;
+        max-width: none; /* Remove max-width constraint */
+        min-height: 200px;
+        top: 50px;
+        left: 350px;
+    }
+    
+    .widget-system-status .widget-content {
+        padding: 1.5rem 1rem;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+    }
+    
+    .widget-outdated-backups {
+        width: 600px;
+        height: 400px;
+        min-width: 500px;
+        min-height: 350px;
+        max-width: none; /* Remove max-width constraint */
+        top: 50px;
+        right: 300px;
+    }
+    
+    .widget-outdated-backups .widget-content {
+        padding: 1rem;
+        display: flex;
+        flex-direction: column;
+        height: calc(100% - 60px);
+    }
+    
+    .date-filter {
+        margin-bottom: 1rem;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid #e9ecef;
+    }
+    
+    .date-filter input[type="date"] {
+        font-size: 0.9rem;
+        padding: 0.375rem 0.75rem;
+        border: 1px solid #ced4da;
+        border-radius: 0.375rem;
+        background-color: #fff;
+    }
+    
+    .backup-table {
+        flex: 1;
+        overflow-y: auto;
+        max-height: 280px;
+    }
+    
+    .backup-table table {
+        width: 100%;
+        margin: 0;
+    }
+    
+    .backup-table th {
+        background-color: #f8f9fa;
+        font-weight: 600;
+        font-size: 0.85rem;
+        padding: 0.75rem 0.5rem;
+        border-bottom: 2px solid #dee2e6;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+    }
+    
+    .backup-table td {
+        padding: 0.6rem 0.5rem;
+        border-bottom: 1px solid #e9ecef;
+        font-size: 0.85rem;
+        vertical-align: middle;
+    }
+    
+    .backup-table tr:hover {
+        background-color: #f8f9fa;
+    }
+    
+    .status-badge {
+        display: inline-block;
+        padding: 0.25rem 0.5rem;
+        border-radius: 0.375rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+    
+    .status-active {
+        background-color: #d1edff;
+        color: #0c5460;
+    }
+    
+    .status-maintenance {
+        background-color: #fff3cd;
+        color: #664d03;
+    }
+    
+    .backup-date {
+        font-family: monospace;
+        font-size: 0.8rem;
+        color: #6c757d;
+    }
+
+    .card {
+        transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+    }
+    
+    .card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15) !important;
+    }
+    
+    .btn {
+        transition: all 0.3s ease;
+    }
+    
+    .btn:hover {
+        transform: translateY(-1px);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Dashboard Container -->
+<div class="dashboard-container" id="dashboardContainer">
+    <!-- Device Count Widget -->
+    <div class="canvas-widget widget-device-count" id="widget-device-count" data-widget="device-count">
+        <div class="widget-header">
+            <div>
+                <i class="bi bi-hdd-network me-2"></i>
+                <strong>Device Count</strong>
+            </div>
+        </div>
+        <div class="widget-content text-center">
+            <div class="loading-spinner mx-auto mb-3" id="deviceCountSpinner"></div>
+            <p class="metric-value" id="deviceCount" style="display: none;">0</p>
+            <p class="metric-label mb-2">Total Devices in Nautobot</p>
+            <div class="mt-auto">
+                <small class="text-muted d-block">Last updated: <span id="deviceCountTime">Never</span></small>
+            </div>
+        </div>
+        <!-- Resize handles -->
+        <div class="resize-handle resize-n"></div>
+        <div class="resize-handle resize-s"></div>
+        <div class="resize-handle resize-e"></div>
+        <div class="resize-handle resize-w"></div>
+        <div class="resize-handle resize-ne"></div>
+        <div class="resize-handle resize-nw"></div>
+        <div class="resize-handle resize-se"></div>
+        <div class="resize-handle resize-sw"></div>
+    </div>
+
+    <!-- Recent Changes Widget -->
+    <div class="canvas-widget widget-recent-changes" id="widget-recent-changes" data-widget="recent-changes">
+        <div class="widget-header">
+            <div>
+                <i class="bi bi-clock-history me-2"></i>
+                <strong>Recent Changes</strong>
+            </div>
+        </div>
+        <div class="widget-content">
+            <div class="loading-spinner mx-auto mb-3" id="recentChangesSpinner"></div>
+            <div class="changes-list" id="recentChangesList" style="display: none;"></div>
+            <small class="text-muted">Last updated: <span id="recentChangesTime">Never</span></small>
+        </div>
+        <!-- Resize handles -->
+        <div class="resize-handle resize-n"></div>
+        <div class="resize-handle resize-s"></div>
+        <div class="resize-handle resize-e"></div>
+        <div class="resize-handle resize-w"></div>
+        <div class="resize-handle resize-ne"></div>
+        <div class="resize-handle resize-nw"></div>
+        <div class="resize-handle resize-se"></div>
+        <div class="resize-handle resize-sw"></div>
+    </div>
+
+    <!-- System Status Widget -->
+    <div class="canvas-widget widget-system-status" id="widget-system-status" data-widget="system-status">
+        <div class="widget-header">
+            <div>
+                <i class="bi bi-shield-check me-2"></i>
+                <strong>System Status</strong>
+            </div>
+        </div>
+        <div class="widget-content">
+            <div class="loading-spinner mx-auto mb-3" id="systemStatusSpinner"></div>
+            <div id="systemStatusContent" style="display: none;">
+                <div class="text-center mb-3">
+                    <div>
+                        <small class="text-muted">Nautobot Core</small>
+                        <div><strong id="nautobotVersion" class="text-primary">Unknown</strong></div>
+                    </div>
+                </div>
+                <div class="text-center">
+                    <div>
+                        <small class="text-muted">Installed Apps</small>
+                        <div><small id="nautobotAppsVersion" class="text-info" style="font-size: 0.8rem; line-height: 1.3; word-break: break-word; white-space: normal; display: block;">Unknown</small></div>
+                    </div>
+                </div>
+                <div class="mt-2 text-center">
+                    <small class="text-muted">Last updated: <span id="systemStatusTime">Never</span></small>
+                </div>
+            </div>
+        </div>
+        <!-- Resize handles -->
+        <div class="resize-handle resize-n"></div>
+        <div class="resize-handle resize-s"></div>
+        <div class="resize-handle resize-e"></div>
+        <div class="resize-handle resize-w"></div>
+        <div class="resize-handle resize-ne"></div>
+        <div class="resize-handle resize-nw"></div>
+        <div class="resize-handle resize-se"></div>
+        <div class="resize-handle resize-sw"></div>
+    </div>
+
+    <!-- Outdated Backups Widget -->
+    <div class="canvas-widget widget-outdated-backups" id="widget-outdated-backups" data-widget="outdated-backups">
+        <div class="widget-header">
+            <div>
+                <i class="bi bi-hdd-stack me-2"></i>
+                <strong>Outdated Backups</strong>
+            </div>
+        </div>
+        <div class="widget-content">
+            <div class="date-filter">
+                <label for="backupDateFilter" class="form-label mb-2">Show devices with backup older than:</label>
+                <input type="date" class="form-control" id="backupDateFilter" value="">
+            </div>
+            <div class="loading-spinner mx-auto mb-3" id="outdatedBackupsSpinner"></div>
+            <div class="backup-table" id="outdatedBackupsTable" style="display: none;">
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Device Name</th>
+                            <th>Location</th>
+                            <th>Primary IP</th>
+                            <th>Status</th>
+                            <th>Last Backup</th>
+                        </tr>
+                    </thead>
+                    <tbody id="outdatedBackupsTableBody">
+                    </tbody>
+                </table>
+            </div>
+            <div class="mt-auto">
+                <small class="text-muted">
+                    <span id="outdatedBackupsCount">0</span> devices found | 
+                    Last updated: <span id="outdatedBackupsTime">Never</span>
+                </small>
+            </div>
+        </div>
+        <!-- Resize handles -->
+        <div class="resize-handle resize-n"></div>
+        <div class="resize-handle resize-s"></div>
+        <div class="resize-handle resize-e"></div>
+        <div class="resize-handle resize-w"></div>
+        <div class="resize-handle resize-ne"></div>
+        <div class="resize-handle resize-nw"></div>
+        <div class="resize-handle resize-se"></div>
+        <div class="resize-handle resize-sw"></div>
+    </div>
+</div>
+
+<script>
+let isDragging = false;
+let currentWidget = null;
+let offset = { x: 0, y: 0 };
+
+// Resize variables
+let isResizing = false;
+let currentResizeHandle = null;
+let resizeStartSize = { width: 0, height: 0 };
+let resizeStartPos = { x: 0, y: 0 };
+let resizeStartMouse = { x: 0, y: 0 };
+
+// Magnetic alignment configuration
+const MAGNETIC_THRESHOLD = 20; // Distance in pixels to trigger magnetic alignment (increased for better UX)
+const EDGE_MAGNETIC_THRESHOLD = 25; // Distance from container edges
+
+// Initialize dashboard
+document.addEventListener('DOMContentLoaded', function() {
+    // Set current date as default for backup date filter
+    const today = new Date();
+    const currentDate = today.toISOString().split('T')[0];
+    document.getElementById('backupDateFilter').value = currentDate;
+    
+    initializeDragAndDrop();
+    loadWidgetPositions();
+    loadData();
+    
+    // Date filter change event
+    document.getElementById('backupDateFilter').addEventListener('change', function() {
+        loadOutdatedBackups();
+    });
+});
+
+function createAlignmentGuide(type, position) {
+    const guide = document.createElement('div');
+    guide.className = `alignment-guide ${type}`;
+    
+    if (type === 'vertical') {
+        guide.style.left = position + 'px';
+    } else {
+        guide.style.top = position + 'px';
+    }
+    
+    document.getElementById('dashboardContainer').appendChild(guide);
+    return guide;
+}
+
+function clearAlignmentGuides() {
+    const guides = document.querySelectorAll('.alignment-guide');
+    guides.forEach(guide => {
+        guide.classList.add('fade-out');
+        setTimeout(() => {
+            if (guide.parentNode) {
+                guide.parentNode.removeChild(guide);
+            }
+        }, 200);
+    });
+}
+
+function findMagneticAlignment(dragX, dragY, dragWidth, dragHeight) {
+    const container = document.getElementById('dashboardContainer');
+    const containerRect = container.getBoundingClientRect();
+    const widgets = document.querySelectorAll('.canvas-widget:not(.dragging)');
+    
+    let magneticX = dragX;
+    let magneticY = dragY;
+    let alignmentGuides = [];
+    
+    // Get all potential alignment points
+    const alignmentPoints = {
+        vertical: new Set(),
+        horizontal: new Set()
+    };
+    
+    // Add container edges as alignment points (accounting for padding)
+    const containerPadding = 32; // 2rem = 32px
+    alignmentPoints.vertical.add(containerPadding); // Left edge with padding
+    alignmentPoints.vertical.add(containerRect.width - containerPadding); // Right edge with padding
+    alignmentPoints.horizontal.add(containerPadding); // Top edge with padding
+    alignmentPoints.horizontal.add(containerRect.height - containerPadding); // Bottom edge with padding
+    
+    // Add standard grid points every 50px for consistent alignment
+    for (let i = containerPadding; i < containerRect.width - containerPadding; i += 50) {
+        alignmentPoints.vertical.add(i);
+    }
+    for (let i = containerPadding; i < containerRect.height - containerPadding; i += 50) {
+        alignmentPoints.horizontal.add(i);
+    }
+    
+    // Add widget edges as alignment points
+    widgets.forEach(widget => {
+        const rect = widget.getBoundingClientRect();
+        const relativeX = rect.left - containerRect.left;
+        const relativeY = rect.top - containerRect.top;
+        
+        // Vertical alignment points (left, right of other widgets)
+        alignmentPoints.vertical.add(relativeX); // Left edge
+        alignmentPoints.vertical.add(relativeX + rect.width); // Right edge
+        
+        // Horizontal alignment points (top, bottom of other widgets)
+        alignmentPoints.horizontal.add(relativeY); // Top edge
+        alignmentPoints.horizontal.add(relativeY + rect.height); // Bottom edge
+    });
+    
+    // Convert sets to arrays for easier processing
+    const verticalPoints = Array.from(alignmentPoints.vertical);
+    const horizontalPoints = Array.from(alignmentPoints.horizontal);
+    
+    // Check for magnetic alignment on X-axis
+    const dragRightX = dragX + dragWidth;
+    let bestXMatch = null;
+    let bestXDistance = MAGNETIC_THRESHOLD;
+    
+    verticalPoints.forEach(point => {
+        // Left edge alignment
+        const leftDistance = Math.abs(dragX - point);
+        if (leftDistance < bestXDistance) {
+            bestXMatch = { type: 'left', position: point, newX: point };
+            bestXDistance = leftDistance;
+        }
+        
+        // Right edge alignment
+        const rightDistance = Math.abs(dragRightX - point);
+        if (rightDistance < bestXDistance) {
+            bestXMatch = { type: 'right', position: point, newX: point - dragWidth };
+            bestXDistance = rightDistance;
+        }
+    });
+    
+    if (bestXMatch) {
+        magneticX = bestXMatch.newX;
+        alignmentGuides.push({ type: 'vertical', position: bestXMatch.position });
+    }
+    
+    // Check for magnetic alignment on Y-axis
+    const dragBottomY = dragY + dragHeight;
+    let bestYMatch = null;
+    let bestYDistance = MAGNETIC_THRESHOLD;
+    
+    horizontalPoints.forEach(point => {
+        // Top edge alignment
+        const topDistance = Math.abs(dragY - point);
+        if (topDistance < bestYDistance) {
+            bestYMatch = { type: 'top', position: point, newY: point };
+            bestYDistance = topDistance;
+        }
+        
+        // Bottom edge alignment
+        const bottomDistance = Math.abs(dragBottomY - point);
+        if (bottomDistance < bestYDistance) {
+            bestYMatch = { type: 'bottom', position: point, newY: point - dragHeight };
+            bestYDistance = bottomDistance;
+        }
+    });
+    
+    if (bestYMatch) {
+        magneticY = bestYMatch.newY;
+        alignmentGuides.push({ type: 'horizontal', position: bestYMatch.position });
+    }
+    
+    return {
+        x: magneticX,
+        y: magneticY,
+        guides: alignmentGuides,
+        aligned: magneticX !== dragX || magneticY !== dragY
+    };
+}
+
+function initializeDragAndDrop() {
+    const widgets = document.querySelectorAll('.canvas-widget');
+    
+    widgets.forEach(widget => {
+        const header = widget.querySelector('.widget-header');
+        
+        header.addEventListener('mousedown', startDrag);
+        widget.addEventListener('mousedown', bringToFront);
+        
+        // Add resize event listeners
+        const resizeHandles = widget.querySelectorAll('.resize-handle');
+        resizeHandles.forEach(handle => {
+            handle.addEventListener('mousedown', startResize);
+        });
+    });
+    
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+}
+
+function startResize(e) {
+    if (isDragging) return; // Don't start resize if already dragging
+    
+    e.preventDefault();
+    e.stopPropagation();
+    
+    isResizing = true;
+    currentResizeHandle = e.target;
+    currentWidget = e.target.closest('.canvas-widget');
+    
+    const rect = currentWidget.getBoundingClientRect();
+    const containerRect = document.getElementById('dashboardContainer').getBoundingClientRect();
+    
+    resizeStartSize = {
+        width: rect.width,
+        height: rect.height
+    };
+    
+    resizeStartPos = {
+        x: rect.left - containerRect.left,
+        y: rect.top - containerRect.top
+    };
+    
+    resizeStartMouse = {
+        x: e.clientX,
+        y: e.clientY
+    };
+    
+    currentWidget.classList.add('resizing');
+    currentResizeHandle.classList.add('resizing');
+    
+    document.body.style.userSelect = 'none';
+}
+
+function handleResize(e) {
+    if (!isResizing || !currentWidget || !currentResizeHandle) return;
+    
+    const deltaX = e.clientX - resizeStartMouse.x;
+    const deltaY = e.clientY - resizeStartMouse.y;
+    
+    const handleClass = currentResizeHandle.classList;
+    let newWidth = resizeStartSize.width;
+    let newHeight = resizeStartSize.height;
+    let newX = resizeStartPos.x;
+    let newY = resizeStartPos.y;
+    
+    // Handle different resize directions
+    if (handleClass.contains('resize-e') || handleClass.contains('resize-se') || handleClass.contains('resize-ne')) {
+        newWidth = Math.max(200, resizeStartSize.width + deltaX); // Minimum width 200px
+    }
+    
+    if (handleClass.contains('resize-w') || handleClass.contains('resize-sw') || handleClass.contains('resize-nw')) {
+        newWidth = Math.max(200, resizeStartSize.width - deltaX);
+        newX = resizeStartPos.x + (resizeStartSize.width - newWidth);
+    }
+    
+    if (handleClass.contains('resize-s') || handleClass.contains('resize-se') || handleClass.contains('resize-sw')) {
+        newHeight = Math.max(150, resizeStartSize.height + deltaY); // Minimum height 150px
+    }
+    
+    if (handleClass.contains('resize-n') || handleClass.contains('resize-ne') || handleClass.contains('resize-nw')) {
+        newHeight = Math.max(150, resizeStartSize.height - deltaY);
+        newY = resizeStartPos.y + (resizeStartSize.height - newHeight);
+    }
+    
+    // Apply new dimensions and position
+    currentWidget.style.width = newWidth + 'px';
+    currentWidget.style.height = newHeight + 'px';
+    currentWidget.style.left = newX + 'px';
+    currentWidget.style.top = newY + 'px';
+    currentWidget.style.right = 'auto';
+    currentWidget.style.bottom = 'auto';
+    
+    // Update container size if needed
+    updateContainerSize();
+}
+
+function stopResize() {
+    if (isResizing && currentWidget) {
+        currentWidget.classList.remove('resizing');
+        if (currentResizeHandle) {
+            currentResizeHandle.classList.remove('resizing');
+        }
+        
+        // Save widget size and position
+        saveWidgetPositions();
+        updateContainerSize();
+        
+        document.body.style.userSelect = '';
+    }
+    
+    isResizing = false;
+    currentResizeHandle = null;
+}
+
+function handleMouseMove(e) {
+    if (isResizing) {
+        handleResize(e);
+    } else if (isDragging) {
+        drag(e);
+    }
+}
+
+function handleMouseUp() {
+    if (isResizing) {
+        stopResize();
+    } else if (isDragging) {
+        stopDrag();
+    }
+}
+
+function startDrag(e) {
+    if (isResizing) return; // Don't start drag if already resizing
+    
+    isDragging = true;
+    currentWidget = e.target.closest('.canvas-widget');
+    currentWidget.classList.add('dragging');
+    
+    const rect = currentWidget.getBoundingClientRect();
+    const containerRect = document.getElementById('dashboardContainer').getBoundingClientRect();
+    
+    offset.x = e.clientX - rect.left;
+    offset.y = e.clientY - rect.top;
+    
+    e.preventDefault();
+}
+
+function drag(e) {
+    if (!isDragging || !currentWidget) return;
+    
+    const containerRect = document.getElementById('dashboardContainer').getBoundingClientRect();
+    const widgetRect = currentWidget.getBoundingClientRect();
+    
+    let newX = e.clientX - containerRect.left - offset.x;
+    let newY = e.clientY - containerRect.top - offset.y;
+    
+    // Only constrain to left and top bounds, allow expansion to right and bottom
+    newX = Math.max(0, newX);
+    newY = Math.max(0, newY);
+    
+    // Apply magnetic alignment
+    const alignment = findMagneticAlignment(newX, newY, widgetRect.width, widgetRect.height);
+    
+    // Clear previous alignment guides
+    clearAlignmentGuides();
+    
+    // Apply magnetic position
+    currentWidget.style.left = alignment.x + 'px';
+    currentWidget.style.top = alignment.y + 'px';
+    currentWidget.style.right = 'auto';
+    currentWidget.style.bottom = 'auto';
+    
+    // Dynamically expand container if needed
+    updateContainerSize();
+    
+    // Show alignment guides if magnetically aligned
+    if (alignment.aligned) {
+        currentWidget.classList.add('magnetically-aligned');
+        alignment.guides.forEach(guide => {
+            createAlignmentGuide(guide.type, guide.position);
+        });
+    } else {
+        currentWidget.classList.remove('magnetically-aligned');
+    }
+    
+    // Check for collision with other widgets (keep existing collision detection)
+    checkForCollision(alignment.x, alignment.y);
+}
+
+function updateContainerSize() {
+    const container = document.getElementById('dashboardContainer');
+    const widgets = document.querySelectorAll('.canvas-widget');
+    
+    let maxRight = 0;
+    let maxBottom = 0;
+    
+    widgets.forEach(widget => {
+        const rect = widget.getBoundingClientRect();
+        const containerRect = container.getBoundingClientRect();
+        
+        const widgetRight = rect.left - containerRect.left + rect.width;
+        const widgetBottom = rect.top - containerRect.top + rect.height;
+        
+        maxRight = Math.max(maxRight, widgetRight);
+        maxBottom = Math.max(maxBottom, widgetBottom);
+    });
+    
+    // Add some padding and ensure minimum size
+    const minWidth = 800; // Minimum container width
+    const minHeight = window.innerHeight * 0.8; // 80vh minimum
+    const padding = 64; // 2rem padding on each side = 4rem total
+    
+    const newWidth = Math.max(minWidth, maxRight + padding);
+    const newHeight = Math.max(minHeight, maxBottom + padding);
+    
+    container.style.width = newWidth + 'px';
+    container.style.minHeight = newHeight + 'px';
+}
+
+function stopDrag() {
+    if (isDragging && currentWidget) {
+        // Check for final collision and swap if needed
+        const containerRect = document.getElementById('dashboardContainer').getBoundingClientRect();
+        const currentRect = currentWidget.getBoundingClientRect();
+        
+        const dragX = currentRect.left - containerRect.left;
+        const dragY = currentRect.top - containerRect.top;
+        
+        const widgets = document.querySelectorAll('.canvas-widget:not(.dragging)');
+        let collisionWidget = null;
+        
+        widgets.forEach(widget => {
+            const rect = widget.getBoundingClientRect();
+            const widgetX = rect.left - containerRect.left;
+            const widgetY = rect.top - containerRect.top;
+            const widgetWidth = rect.width;
+            const widgetHeight = rect.height;
+            
+            const currentWidgetWidth = currentWidget.offsetWidth;
+            const currentWidgetHeight = currentWidget.offsetHeight;
+            
+            // Check for collision
+            if (dragX < widgetX + widgetWidth &&
+                dragX + currentWidgetWidth > widgetX &&
+                dragY < widgetY + widgetHeight &&
+                dragY + currentWidgetHeight > widgetY) {
+                collisionWidget = widget;
+            }
+        });
+        
+        // Perform swap if collision detected
+        if (collisionWidget) {
+            swapWidgetPositions(currentWidget, collisionWidget);
+        }
+        
+        // Clean up drag states
+        currentWidget.classList.remove('dragging', 'magnetically-aligned');
+        clearCollisionHighlight();
+        clearAlignmentGuides();
+        updateContainerSize(); // Update container size after dragging
+        saveWidgetPositions();
+    }
+    
+    isDragging = false;
+    currentWidget = null;
+}
+
+function checkForCollision(dragX, dragY) {
+    if (!currentWidget) return;
+    
+    const widgets = document.querySelectorAll('.canvas-widget:not(.dragging)');
+    let collisionWidget = null;
+    
+    widgets.forEach(widget => {
+        const rect = widget.getBoundingClientRect();
+        const containerRect = document.getElementById('dashboardContainer').getBoundingClientRect();
+        
+        const widgetX = rect.left - containerRect.left;
+        const widgetY = rect.top - containerRect.top;
+        const widgetWidth = rect.width;
+        const widgetHeight = rect.height;
+        
+        const currentWidgetWidth = currentWidget.offsetWidth;
+        const currentWidgetHeight = currentWidget.offsetHeight;
+        
+        // Check if the dragged widget overlaps with this widget
+        if (dragX < widgetX + widgetWidth &&
+            dragX + currentWidgetWidth > widgetX &&
+            dragY < widgetY + widgetHeight &&
+            dragY + currentWidgetHeight > widgetY) {
+            collisionWidget = widget;
+        }
+    });
+    
+    // Clear previous highlights
+    clearCollisionHighlight();
+    
+    // Highlight collision widget
+    if (collisionWidget) {
+        collisionWidget.classList.add('collision-target');
+    }
+}
+
+function clearCollisionHighlight() {
+    const highlighted = document.querySelectorAll('.collision-target');
+    highlighted.forEach(widget => widget.classList.remove('collision-target'));
+}
+
+function swapWidgetPositions(widget1, widget2) {
+    const containerRect = document.getElementById('dashboardContainer').getBoundingClientRect();
+    
+    // Get current positions
+    const rect1 = widget1.getBoundingClientRect();
+    const rect2 = widget2.getBoundingClientRect();
+    
+    const pos1 = {
+        x: rect1.left - containerRect.left,
+        y: rect1.top - containerRect.top
+    };
+    
+    const pos2 = {
+        x: rect2.left - containerRect.left,
+        y: rect2.top - containerRect.top
+    };
+    
+    // Apply smooth transition
+    widget1.style.transition = 'all 0.3s ease';
+    widget2.style.transition = 'all 0.3s ease';
+    
+    // Swap positions
+    widget1.style.left = pos2.x + 'px';
+    widget1.style.top = pos2.y + 'px';
+    widget1.style.right = 'auto';
+    widget1.style.bottom = 'auto';
+    
+    widget2.style.left = pos1.x + 'px';
+    widget2.style.top = pos1.y + 'px';
+    widget2.style.right = 'auto';
+    widget2.style.bottom = 'auto';
+    
+    // Remove transition after animation
+    setTimeout(() => {
+        widget1.style.transition = '';
+        widget2.style.transition = '';
+    }, 300);
+}
+
+function bringToFront(e) {
+    const widget = e.target.closest('.canvas-widget');
+    const widgets = document.querySelectorAll('.canvas-widget');
+    
+    widgets.forEach(w => w.style.zIndex = '1');
+    widget.style.zIndex = '10';
+}
+
+function saveWidgetPositions() {
+    const widgets = document.querySelectorAll('.canvas-widget');
+    const positions = {};
+    
+    widgets.forEach(widget => {
+        const widgetId = widget.dataset.widget;
+        const rect = widget.getBoundingClientRect();
+        const containerRect = document.getElementById('dashboardContainer').getBoundingClientRect();
+        
+        positions[widgetId] = {
+            x: rect.left - containerRect.left,
+            y: rect.top - containerRect.top,
+            width: rect.width,
+            height: rect.height
+        };
+    });
+    
+    localStorage.setItem('dashboardWidgetPositions', JSON.stringify(positions));
+}
+
+function loadWidgetPositions() {
+    const savedPositions = localStorage.getItem('dashboardWidgetPositions');
+    
+    if (savedPositions) {
+        const positions = JSON.parse(savedPositions);
+        
+        Object.keys(positions).forEach(widgetId => {
+            const widget = document.querySelector(`[data-widget="${widgetId}"]`);
+            if (widget && positions[widgetId]) {
+                widget.style.left = positions[widgetId].x + 'px';
+                widget.style.top = positions[widgetId].y + 'px';
+                widget.style.right = 'auto';
+                widget.style.bottom = 'auto';
+                
+                // Restore size if saved
+                if (positions[widgetId].width && positions[widgetId].height) {
+                    widget.style.width = positions[widgetId].width + 'px';
+                    widget.style.height = positions[widgetId].height + 'px';
+                }
+            }
+        });
+        
+        // Update container size after loading widget positions
+        setTimeout(() => updateContainerSize(), 100); // Small delay to ensure widgets are positioned
+    }
+}
+
+async function loadData() {
+    await Promise.all([
+        loadDeviceCount(),
+        loadRecentChanges(),
+        loadSystemStatus(),
+        loadOutdatedBackups()
+    ]);
+    
+    // Update container size after all data is loaded and widgets are sized
+    setTimeout(() => updateContainerSize(), 200);
+}
+
+async function loadDeviceCount() {
+    try {
+        const response = await fetch('/api/device-count');
+        const data = await response.json();
+        
+        if (data.success) {
+            document.getElementById('deviceCountSpinner').style.display = 'none';
+            const deviceCountElement = document.getElementById('deviceCount');
+            deviceCountElement.style.display = 'block';
+            deviceCountElement.textContent = data.count;
+            document.getElementById('deviceCountTime').textContent = new Date().toLocaleTimeString();
+            
+            // Dynamic sizing based on content length
+            const deviceCountStr = data.count.toString();
+            const timeStr = new Date().toLocaleTimeString();
+            
+            // Apply responsive font size classes based on number length
+            deviceCountElement.classList.remove('large-number', 'very-large-number');
+            if (deviceCountStr.length > 6) {
+                deviceCountElement.classList.add('very-large-number');
+            } else if (deviceCountStr.length > 4) {
+                deviceCountElement.classList.add('large-number');
+            }
+            
+            // Calculate width based on content - larger numbers need more space
+            let newWidth = 300; // Base width
+            if (deviceCountStr.length > 4) {
+                newWidth = Math.min(450, 300 + (deviceCountStr.length - 4) * 20);
+            }
+            
+            // Calculate height based on content
+            let newHeight = 200; // Base height
+            if (deviceCountStr.length > 6) {
+                newHeight = Math.max(220, 200 + Math.floor(deviceCountStr.length / 6) * 20);
+            }
+            
+            // Apply the new dimensions
+            const widget = document.getElementById('widget-device-count');
+            if (widget) {
+                widget.style.width = `${newWidth}px`;
+                widget.style.height = `${newHeight}px`;
+            }
+        }
+    } catch (error) {
+        console.error('Failed to load device count:', error);
+        document.getElementById('deviceCountSpinner').style.display = 'none';
+        const deviceCountElement = document.getElementById('deviceCount');
+        deviceCountElement.style.display = 'block';
+        deviceCountElement.textContent = 'Error';
+    }
+}
+
+async function loadRecentChanges() {
+    try {
+        const response = await fetch('/api/recent-changes');
+        const data = await response.json();
+        
+        if (data.success && data.changes) {
+            const changesList = document.getElementById('recentChangesList');
+            changesList.innerHTML = '';
+            
+            data.changes.forEach(change => {
+                const changeItem = document.createElement('div');
+                changeItem.className = 'change-item';
+                
+                // Parse the time properly from Nautobot format
+                const changeTime = new Date(change.time);
+                const timeAgo = getTimeAgo(changeTime);
+                
+                // Use the display parameter which contains the formatted change description
+                // This is the main improvement - using display instead of changed_object
+                const displayText = change.display || change.changed_object || 'Unknown change';
+                
+                // Extract action label from the action object
+                const actionText = (change.action && change.action.label) ? change.action.label : 'Updated';
+                
+                // Get object type for additional context
+                const objectType = change.changed_object_type || '';
+                
+                changeItem.innerHTML = `
+                    <div>
+                        <div class="change-action" style="font-weight: 700; font-size: 1rem; margin-bottom: 0.25rem;">${actionText}</div>
+                        <div class="change-object">${displayText}</div>
+                        ${objectType ? `<div class="change-type text-muted" style="font-size: 0.8rem;">${objectType}</div>` : ''}
+                    </div>
+                    <div class="change-time">${timeAgo}</div>
+                `;
+                
+                changesList.appendChild(changeItem);
+            });
+            
+            document.getElementById('recentChangesSpinner').style.display = 'none';
+            document.getElementById('recentChangesList').style.display = 'block';
+            document.getElementById('recentChangesTime').textContent = new Date().toLocaleTimeString();
+        }
+    } catch (error) {
+        console.error('Failed to load recent changes:', error);
+        document.getElementById('recentChangesSpinner').style.display = 'none';
+        document.getElementById('recentChangesList').innerHTML = '<p class="text-muted">Failed to load changes</p>';
+        document.getElementById('recentChangesList').style.display = 'block';
+    }
+}
+
+async function loadSystemStatus() {
+    try {
+        const response = await fetch('/api/system-status');
+        const data = await response.json();
+        
+        document.getElementById('systemStatusSpinner').style.display = 'none';
+        document.getElementById('systemStatusContent').style.display = 'block';
+        
+        const widget = document.getElementById('widget-system-status');
+        
+        if (data.success) {
+            // Update Nautobot version
+            const nautobotVersionEl = document.getElementById('nautobotVersion');
+            nautobotVersionEl.textContent = `v${data.nautobot_version}`;
+            nautobotVersionEl.className = 'text-primary';
+            
+            // Update Nautobot Apps version with better formatting
+            const nautobotAppsVersionEl = document.getElementById('nautobotAppsVersion');
+            nautobotAppsVersionEl.textContent = data.nautobot_apps_version;
+            nautobotAppsVersionEl.className = 'text-info';
+            nautobotAppsVersionEl.title = data.nautobot_apps_version; // Add tooltip for full text
+            
+            // Dynamically adjust widget width based on content length
+            const appsTextLength = data.nautobot_apps_version.length;
+            let newWidth = 300; // Default width
+            
+            if (appsTextLength > 50) {
+                newWidth = Math.min(450, 300 + Math.floor(appsTextLength / 3));
+            }
+            
+            widget.style.width = newWidth + 'px';
+            
+        } else {
+            // Handle error state
+            const nautobotVersionEl = document.getElementById('nautobotVersion');
+            nautobotVersionEl.textContent = data.nautobot_version || 'Error';
+            nautobotVersionEl.className = data.nautobot_version === 'Connection Error' ? 'text-danger' : 'text-warning';
+            
+            const nautobotAppsVersionEl = document.getElementById('nautobotAppsVersion');
+            nautobotAppsVersionEl.textContent = data.nautobot_apps_version || 'Unknown';
+            nautobotAppsVersionEl.className = 'text-muted';
+            nautobotAppsVersionEl.title = data.nautobot_apps_version || 'Unknown';
+            
+            // Reset to default width for error states
+            widget.style.width = '300px';
+        }
+        
+        document.getElementById('systemStatusTime').textContent = new Date().toLocaleTimeString();
+        
+    } catch (error) {
+        console.error('Failed to load system status:', error);
+        document.getElementById('systemStatusSpinner').style.display = 'none';
+        document.getElementById('systemStatusContent').style.display = 'block';
+        
+        const widget = document.getElementById('widget-system-status');
+        
+        // Show error state
+        document.getElementById('nautobotVersion').textContent = 'Connection Error';
+        document.getElementById('nautobotVersion').className = 'text-danger';
+        document.getElementById('nautobotAppsVersion').textContent = 'Connection Error';
+        document.getElementById('nautobotAppsVersion').className = 'text-muted';
+        document.getElementById('systemStatusTime').textContent = 'Error';
+        
+        // Reset to default width for error states
+        widget.style.width = '300px';
+    }
+}
+
+async function loadOutdatedBackups() {
+    try {
+        const dateFilter = document.getElementById('backupDateFilter').value;
+        const response = await fetch(`/api/outdated-backups?date=${dateFilter}`);
+        const data = await response.json();
+        
+        document.getElementById('outdatedBackupsSpinner').style.display = 'none';
+        document.getElementById('outdatedBackupsTable').style.display = 'block';
+        
+        if (data.success && data.devices) {
+            const tableBody = document.getElementById('outdatedBackupsTableBody');
+            tableBody.innerHTML = '';
+            
+            data.devices.forEach(device => {
+                const row = document.createElement('tr');
+                
+                // Format the last backup date
+                let lastBackup = 'Never';
+                if (device.cf_last_backup) {
+                    const backupDate = new Date(device.cf_last_backup);
+                    if (!isNaN(backupDate.getTime())) {
+                        lastBackup = backupDate.toLocaleDateString('en-GB');
+                    } else {
+                        lastBackup = device.cf_last_backup;
+                    }
+                }
+                
+                // Get status class for badge
+                const statusClass = device.status?.name?.toLowerCase() === 'active' ? 'status-active' : 'status-maintenance';
+                
+                row.innerHTML = `
+                    <td><strong>${device.name || 'Unknown'}</strong></td>
+                    <td>${device.location?.name || 'Unknown'}</td>
+                    <td>${device.primary_ip4?.address || 'Not assigned'}</td>
+                    <td><span class="status-badge ${statusClass}">${device.status?.name || 'Unknown'}</span></td>
+                    <td><span class="backup-date">${lastBackup}</span></td>
+                `;
+                
+                tableBody.appendChild(row);
+            });
+            
+            // Update count
+            document.getElementById('outdatedBackupsCount').textContent = data.count || data.devices.length;
+        } else {
+            document.getElementById('outdatedBackupsTableBody').innerHTML = '<tr><td colspan="5" class="text-center text-muted">No devices found</td></tr>';
+            document.getElementById('outdatedBackupsCount').textContent = '0';
+        }
+        
+        document.getElementById('outdatedBackupsTime').textContent = new Date().toLocaleTimeString();
+        
+    } catch (error) {
+        console.error('Failed to load outdated backups:', error);
+        document.getElementById('outdatedBackupsSpinner').style.display = 'none';
+        document.getElementById('outdatedBackupsTable').style.display = 'block';
+        document.getElementById('outdatedBackupsTableBody').innerHTML = '<tr><td colspan="5" class="text-center text-danger">Failed to load data</td></tr>';
+        document.getElementById('outdatedBackupsCount').textContent = 'Error';
+        document.getElementById('outdatedBackupsTime').textContent = 'Error';
+    }
+}
+
+function getTimeAgo(date) {
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+    
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffMins < 1440) return `${Math.floor(diffMins / 60)}h ago`;
+    return `${Math.floor(diffMins / 1440)}d ago`;
+}
+</script>
+
+{% endblock %}

@@ -974,11 +974,14 @@ def sync_device_network_data(device_id: str, device_name: str, status_id: str, n
         response = requests.post(url, headers=headers, json=data)
         
         if response.status_code in [200, 201, 202]:
+            job_result = response.json().get('job_result', {}) if response.json() else {}
+            job_id = job_result.get('id', 'Unknown')
             logger.info(f"Successfully initiated network data sync for device {device_name}")
             return {
                 'success': True,
                 'message': f'Network data sync job started for device {device_name}',
-                'job_id': response.json().get('job_result', {}).get('id', 'Unknown') if response.json() else 'Unknown'
+                'job_id': job_id,
+                'job_url': f"{NAUTOBOT_URL}/extras/job-results/{job_id}/" if job_id != 'Unknown' else None
             }
         else:
             logger.error(f"Failed to sync network data for device {device_name}: {response.status_code} - {response.text}")
@@ -1116,103 +1119,112 @@ def logout():
     return redirect(url_for("login"))
 
 
-@app.route("/", methods=["GET", "POST"])
+@app.route("/", methods=["GET"])
 @login_required
 def index():
-    """Handle the main page with IP address validation form."""
-    if request.method == "POST":
-        ip_address = request.form.get("ip_address", "").strip()
-        
-        if not ip_address:
-            flash("Please enter an IP address.", "error")
-            return redirect(url_for("index"))
-        
-        if not validate_ip_address(ip_address):
-            flash("Invalid IP address format.", "error")
-            return redirect(url_for("index"))
-        
-        try:
-            result = check_ip_address_in_nautobot(ip_address)
-            
-            if result['exists']:
-                device = result['device']
-                if device:
-                    flash(f"✅ IP address '{ip_address}' found in Nautobot and assigned to device: {device['name']}", "success")
-                else:
-                    flash(f"✅ IP address '{ip_address}' found in Nautobot but not assigned to any device.", "warning")
-            else:
-                # Store IP address in session for the onboarding form
-                session['onboard_ip'] = ip_address
-                return redirect(url_for("onboard_device"))
-                
-        except Exception as e:
-            logger.error(f"Error checking IP address: {e}")
-            flash(f"Error checking IP address: {str(e)}", "error")
-        
-        return redirect(url_for("index"))
-    
-    return render_template("index.html")
+    """Handle the dashboard page."""
+    return render_template("dashboard.html")
 
 
 @app.route("/onboard", methods=["GET", "POST"])
 @login_required
 def onboard_device():
-    """Handle device onboarding form when IP is not found in Nautobot."""
+    """Handle device onboarding - IP validation and device setup."""
+    # Check if we're coming from an IP check or if IP is already in session
     ip_address = session.get('onboard_ip')
-    if not ip_address:
-        flash("No IP address to onboard. Please check an IP address first.", "error")
-        return redirect(url_for("index"))
     
     if request.method == "POST":
-        # Get form data (all IDs now)
-        location = request.form.get("location", "").strip()
-        secret_groups = request.form.get("secret_groups", "").strip()
-        role = request.form.get("role", "").strip()
-        namespace = request.form.get("namespace", "").strip()
-        status = request.form.get("status", "").strip()
-        platform = request.form.get("platform", "").strip()
-        
-        # Validate required fields
-        required_fields = {
-            'location': location,
-            'secret_groups': secret_groups,
-            'role': role,
-            'namespace': namespace,
-            'status': status,
-            'platform': platform
-        }
-        
-        missing_fields = [field for field, value in required_fields.items() if not value]
-        if missing_fields:
-            flash(f"Please fill in all required fields: {', '.join(missing_fields)}", "error")
-            return redirect(url_for("onboard_device"))
-        
-        try:
-            result = add_device_to_nautobot(
-                ip_address=ip_address,
-                location_id=location,
-                secret_groups_id=secret_groups,
-                role_id=role,
-                namespace_id=namespace,
-                status_id=status,
-                platform_id=platform
-            )
+        # Check if this is an IP validation request
+        if 'ip_address' in request.form:
+            ip_address = request.form.get("ip_address", "").strip()
             
-            if result['success']:
-                flash(f"✅ Device onboarding initiated successfully!", "success")
-                flash(f"Job ID: {result['job_id']} - {result['message']}", "info")
-                # Clear the IP from session
-                session.pop('onboard_ip', None)
-                return redirect(url_for("index"))
-            else:
-                flash(f"❌ Failed to onboard device: {result['error']}", "error")
+            if not ip_address:
+                flash("Please enter an IP address.", "error")
                 return redirect(url_for("onboard_device"))
+            
+            if not validate_ip_address(ip_address):
+                flash("Invalid IP address format.", "error")
+                return redirect(url_for("onboard_device"))
+            
+            try:
+                result = check_ip_address_in_nautobot(ip_address)
                 
-        except Exception as e:
-            logger.error(f"Error during device onboarding: {e}")
-            flash(f"Error during device onboarding: {str(e)}", "error")
-            return redirect(url_for("onboard_device"))
+                if result['exists']:
+                    device = result['device']
+                    if device:
+                        flash(f"✅ IP address '{ip_address}' found in Nautobot and assigned to device: {device['name']}", "success")
+                        return redirect(url_for("onboard_device"))
+                    else:
+                        flash(f"✅ IP address '{ip_address}' found in Nautobot but not assigned to any device.", "warning")
+                        return redirect(url_for("onboard_device"))
+                else:
+                    # Store IP address in session for the onboarding form
+                    session['onboard_ip'] = ip_address
+                    flash(f"IP address '{ip_address}' not found in Nautobot. Please configure the device details below.", "info")
+                    return redirect(url_for("onboard_device"))
+                    
+            except Exception as e:
+                logger.error(f"Error checking IP address: {e}")
+                flash(f"Error checking IP address: {str(e)}", "error")
+                return redirect(url_for("onboard_device"))
+        
+        # Handle device onboarding form submission
+        else:
+            ip_address = session.get('onboard_ip')
+            if not ip_address:
+                flash("No IP address to onboard. Please check an IP address first.", "error")
+                return redirect(url_for("onboard_device"))
+            
+            # Get form data (all IDs now)
+            location = request.form.get("location", "").strip()
+            secret_groups = request.form.get("secret_groups", "").strip()
+            role = request.form.get("role", "").strip()
+            namespace = request.form.get("namespace", "").strip()
+            status = request.form.get("status", "").strip()
+            platform = request.form.get("platform", "").strip()
+            
+            # Validate required fields
+            required_fields = {
+                'location': location,
+                'secret_groups': secret_groups,
+                'role': role,
+                'namespace': namespace,
+                'status': status,
+                'platform': platform
+            }
+            
+            missing_fields = [field for field, value in required_fields.items() if not value]
+            if missing_fields:
+                flash(f"Please fill in all required fields: {', '.join(missing_fields)}", "error")
+                return redirect(url_for("onboard_device"))
+            
+            try:
+                result = add_device_to_nautobot(
+                    ip_address=ip_address,
+                    location_id=location,
+                    secret_groups_id=secret_groups,
+                    role_id=role,
+                    namespace_id=namespace,
+                    status_id=status,
+                    platform_id=platform
+                )
+                
+                if result['success']:
+                    flash(f"✅ Device onboarding initiated successfully!", "success")
+                    flash(f"Job ID: {result['job_id']} - {result['message']}", "info")
+                    # Clear the IP from session
+                    session.pop('onboard_ip', None)
+                    return redirect(url_for("onboard_device"))
+                else:
+                    flash(f"❌ Failed to onboard device: {result['error']}", "error")
+                    return redirect(url_for("onboard_device"))
+                    
+            except Exception as e:
+                logger.error(f"Error during device onboarding: {e}")
+                flash(f"Error during device onboarding: {str(e)}", "error")
+                return redirect(url_for("onboard_device"))
     
+    # GET request - show the onboarding page
     # Fetch all data for dropdowns
     try:
         locations = get_nautobot_locations()
@@ -1327,7 +1339,9 @@ def api_sync_devices():
                     results.append({
                         'device': device_name,
                         'status': 'success',
-                        'message': result.get('message', f'Sync initiated for {device_name}')
+                        'message': result.get('message', f'Sync initiated for {device_name}'),
+                        'job_id': result.get('job_id'),
+                        'job_url': result.get('job_url')
                     })
                     successful += 1
                 else:
@@ -1375,6 +1389,331 @@ def api_dropdown_data():
     
     except Exception as e:
         return jsonify({'error': f'Failed to load dropdown data: {str(e)}'}), 500
+
+
+@app.route('/api/job-status/<job_id>', methods=['GET'])
+@login_required
+def api_job_status(job_id):
+    """API endpoint to check job status"""
+    try:
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Token {NAUTOBOT_API_TOKEN}"
+        }
+        
+        # Get job details
+        url = f"{NAUTOBOT_URL}/api/extras/job-results/{job_id}/"
+        response = requests.get(url, headers=headers)
+        
+        if response.status_code != 200:
+            return jsonify({'error': f'Failed to get job status: {response.status_code}'}), 500
+        
+        job_data = response.json()
+        
+        # Extract relevant information
+        status = job_data.get('status', {}).get('name', 'unknown')
+        date_created = job_data.get('date_created')
+        date_done = job_data.get('date_done')
+        result = job_data.get('result', {})
+        
+        # Calculate progress based on status
+        progress = 0
+        if status.lower() == 'pending':
+            progress = 10
+        elif status.lower() in ['running', 'started']:
+            progress = 50
+        elif status.lower() in ['completed', 'success']:
+            progress = 100
+        elif status.lower() in ['failed', 'errored']:
+            progress = 100
+        
+        return jsonify({
+            'success': True,
+            'job_id': job_id,
+            'status': status,
+            'progress': progress,
+            'date_created': date_created,
+            'date_done': date_done,
+            'result': result,
+            'is_finished': status.lower() in ['completed', 'success', 'failed', 'errored']
+        })
+    
+    except Exception as e:
+        logger.error(f"Error checking job status {job_id}: {e}")
+        return jsonify({'error': f'Failed to check job status: {str(e)}'}), 500
+
+
+@app.route('/api/active-jobs', methods=['GET'])
+@login_required
+def api_active_jobs():
+    """API endpoint to get active jobs count"""
+    try:
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Token {NAUTOBOT_API_TOKEN}"
+        }
+        
+        # Get recent job results (last 100, filter for running/pending)
+        url = f"{NAUTOBOT_URL}/api/extras/job-results/"
+        params = {
+            'limit': 100,
+            'status': 'pending,running,started'
+        }
+        response = requests.get(url, headers=headers, params=params)
+        
+        if response.status_code != 200:
+            return jsonify({'active_jobs': 0})
+        
+        job_data = response.json()
+        active_count = job_data.get('count', 0)
+        
+        return jsonify({
+            'success': True,
+            'active_jobs': active_count
+        })
+    
+    except Exception as e:
+        logger.error(f"Error getting active jobs: {e}")
+        return jsonify({'active_jobs': 0})
+
+
+@app.route('/api/device-count', methods=['GET'])
+@login_required
+def api_device_count():
+    """API endpoint to get total device count from Nautobot"""
+    try:
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Token {NAUTOBOT_API_TOKEN}"
+        }
+        
+        # Get device count using the specific endpoint from nautobot_access.md
+        url = f"{NAUTOBOT_URL}/api/dcim/devices/"
+        params = {
+            'depth': 0,
+            'limit': 1,
+            'offset': 1
+        }
+        response = requests.get(url, headers=headers, params=params)
+        
+        if response.status_code != 200:
+            return jsonify({
+                'success': False,
+                'error': f'Failed to fetch device count: {response.status_code}'
+            }), 500
+        
+        data = response.json()
+        device_count = data.get('count', 0)
+        
+        logger.info(f"Retrieved device count: {device_count}")
+        return jsonify({
+            'success': True,
+            'count': device_count
+        })
+    
+    except Exception as e:
+        logger.error(f"Error getting device count: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/recent-changes', methods=['GET'])
+@login_required
+def api_recent_changes():
+    """API endpoint to get last 10 changes from Nautobot"""
+    try:
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Token {NAUTOBOT_API_TOKEN}"
+        }
+        
+        # Get recent changes using the specific endpoint from nautobot_access.md
+        url = f"{NAUTOBOT_URL}/api/extras/object-changes/"
+        params = {
+            'limit': 10,
+            'offset': 0
+        }
+        response = requests.get(url, headers=headers, params=params)
+        
+        if response.status_code != 200:
+            return jsonify({
+                'success': False,
+                'error': f'Failed to fetch recent changes: {response.status_code}'
+            }), 500
+        
+        data = response.json()
+        changes = data.get('results', [])
+        
+        logger.info(f"Retrieved {len(changes)} recent changes")
+        return jsonify({
+            'success': True,
+            'changes': changes
+        })
+    
+    except Exception as e:
+        logger.error(f"Error getting recent changes: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/system-status', methods=['GET'])
+@login_required
+def api_system_status():
+    """API endpoint to get Nautobot system status"""
+    try:
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Token {NAUTOBOT_API_TOKEN}"
+        }
+        
+        # Get system status using the endpoint from nautobot_access.md
+        url = f"{NAUTOBOT_URL}/api/status/"
+        response = requests.get(url, headers=headers)
+        
+        if response.status_code != 200:
+            return jsonify({
+                'success': False,
+                'error': f'Failed to fetch system status: {response.status_code}',
+                'nautobot_version': 'Connection Error',
+                'nautobot_apps_version': 'Connection Error'
+            }), 200  # Return 200 so frontend can still show partial status
+        
+        data = response.json()
+        
+        # Extract relevant status information
+        nautobot_version = data.get('nautobot-version', 'Unknown')
+        django_version = data.get('django-version', 'Unknown')
+        python_version = data.get('python-version', 'Unknown')
+        
+        # Extract nautobot-apps from the specific "nautobot-apps" parameter
+        nautobot_apps_dict = data.get('nautobot-apps', {})
+        nautobot_apps_info = []
+        
+        # Process the nautobot-apps dictionary
+        if nautobot_apps_dict and isinstance(nautobot_apps_dict, dict):
+            for app_name, app_version in nautobot_apps_dict.items():
+                nautobot_apps_info.append(f"{app_name}: {app_version}")
+        
+        # Format the apps information
+        if nautobot_apps_info:
+            nautobot_apps_version = ", ".join(nautobot_apps_info)
+            # If too long, truncate and show count
+            if len(nautobot_apps_version) > 100:
+                nautobot_apps_version = f"{len(nautobot_apps_info)} apps: " + ", ".join(nautobot_apps_info[:2]) + "..."
+        else:
+            nautobot_apps_version = 'No apps installed'
+        
+        logger.info(f"Retrieved system status - Nautobot: {nautobot_version}, Apps: {nautobot_apps_version}")
+        return jsonify({
+            'success': True,
+            'nautobot_version': nautobot_version,
+            'nautobot_apps_version': nautobot_apps_version,
+            'django_version': django_version,
+            'python_version': python_version,
+            'nautobot_apps_dict': nautobot_apps_dict,  # Include raw dict for frontend if needed
+            'raw_data': data  # Include full response for debugging
+        })
+    
+    except Exception as e:
+        logger.error(f"Error getting system status: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'nautobot_version': 'Connection Error',
+            'nautobot_apps_version': 'Connection Error'
+        }), 200  # Return 200 so frontend can still show partial status
+
+
+@app.route('/api/outdated-backups', methods=['GET'])
+@login_required
+def api_outdated_backups():
+    """API endpoint to get devices with outdated backups"""
+    try:
+        # Get date filter from query parameter, default to current date
+        from datetime import datetime
+        current_date = datetime.now().strftime('%Y-%m-%d')
+        date_filter = request.args.get('date', current_date)
+        
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Token {NAUTOBOT_API_TOKEN}"
+        }
+        
+        # GraphQL query for devices with outdated backups
+        query = """
+        query backup_device($date_filter: [String]) {
+            devices(cf_last_backup__lt: $date_filter) {
+                id
+                name
+                role {
+                    name
+                }
+                location {
+                    name
+                }
+                primary_ip4 {
+                    address
+                }
+                status {
+                    name
+                }
+                cf_last_backup
+            }
+        }
+        """
+        
+        # Prepare GraphQL request
+        graphql_data = {
+            "query": query,
+            "variables": {
+                "date_filter": [date_filter]
+            }
+        }
+        
+        # Make GraphQL request
+        url = f"{NAUTOBOT_URL}/api/graphql/"
+        response = requests.post(url, headers=headers, json=graphql_data)
+        
+        if response.status_code != 200:
+            logger.error(f"GraphQL request failed with status {response.status_code}: {response.text}")
+            return jsonify({
+                'success': False,
+                'error': f'GraphQL request failed: {response.status_code}',
+                'devices': []
+            }), 500
+        
+        data = response.json()
+        
+        # Check for GraphQL errors
+        if 'errors' in data:
+            logger.error(f"GraphQL errors: {data['errors']}")
+            return jsonify({
+                'success': False,
+                'error': f'GraphQL errors: {data["errors"]}',
+                'devices': []
+            }), 500
+        
+        devices = data.get('data', {}).get('devices', [])
+        
+        logger.info(f"Retrieved {len(devices)} devices with outdated backups (before {date_filter})")
+        return jsonify({
+            'success': True,
+            'devices': devices,
+            'date_filter': date_filter,
+            'count': len(devices)
+        })
+    
+    except Exception as e:
+        logger.error(f"Error getting outdated backup devices: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'devices': []
+        }), 500
 
 
 if __name__ == "__main__":
