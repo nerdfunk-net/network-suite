@@ -5,7 +5,9 @@ FROM python:3.11-alpine
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     FLASK_APP=app.py \
-    FLASK_ENV=production
+    FLASK_ENV=production \
+    SERVER_HOST=0.0.0.0 \
+    SERVER_PORT=5003
 
 # Set work directory
 WORKDIR /app

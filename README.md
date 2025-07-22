@@ -172,7 +172,45 @@ docker rm nerdfunk-app
 - **Security**: Runs as non-root user
 - **Health Checks**: Automatic container health monitoring
 - **Volume Mounts**: Configuration files mounted from host
+- **Environment Variables**: Configure via env vars or config.json
 - **Production Ready**: Optimized for production deployment
+
+#### Environment Variables
+
+You can configure the application using environment variables, which take precedence over `config.json` values:
+
+| Environment Variable | Description | Default |
+|---------------------|-------------|---------|
+| `NAUTOBOT_URL` | Nautobot server URL | `http://localhost:8080` |
+| `NAUTOBOT_USERNAME` | Nautobot username | `admin` |
+| `NAUTOBOT_API_TOKEN` | Nautobot API token | *required* |
+| `SERVER_HOST` | Flask server host | `127.0.0.1` (local) / `0.0.0.0` (Docker) |
+| `SERVER_PORT` | Flask server port | `5003` |
+| `SERVER_DEBUG` | Enable debug mode | `true` (local) / `false` (Docker) |
+
+**Example using environment variables:**
+
+```bash
+# Using Docker run with environment variables
+docker run -d \
+  --name nerdfunk-app \
+  -p 5003:5003 \
+  -e NAUTOBOT_URL=http://your-nautobot-server:8080 \
+  -e NAUTOBOT_API_TOKEN=your-api-token-here \
+  -e SERVER_DEBUG=false \
+  -v $(pwd)/usernames.txt:/app/usernames.txt:ro \
+  -v $(pwd)/passwords.txt:/app/passwords.txt:ro \
+  nerdfunk-app
+```
+
+**Docker Compose with environment variables:**
+
+```yaml
+environment:
+  - NAUTOBOT_URL=http://your-nautobot-server:8080
+  - NAUTOBOT_API_TOKEN=your-api-token-here
+  - SERVER_DEBUG=false
+```
 
 The containerized application will be available at `http://localhost:5003`
 

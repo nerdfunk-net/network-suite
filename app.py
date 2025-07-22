@@ -6,7 +6,10 @@ against Nautobot DCIM endpoint with user authentication.
 
 from __future__ import annotations
 
+import json
 import logging
+import os
+import ipaddress
 from pathlib import Path
 from functools import wraps
 
@@ -29,29 +32,92 @@ CONFIG_FILE = Path("config.json")
 
 
 def load_config() -> dict:
-    """Load configuration from config.json file.
+    """Load configuration from config.json file with environment variable overrides.
+    
+    Environment variables take precedence over config.json values:
+    - NAUTOBOT_URL: Nautobot server URL
+    - NAUTOBOT_USERNAME: Nautobot username  
+    - NAUTOBOT_API_TOKEN: Nautobot API token
+    - SERVER_HOST: Flask server host
+    - SERVER_PORT: Flask server port
+    - SERVER_DEBUG: Flask debug mode (true/false)
     
     Returns:
         Dictionary containing configuration settings.
         
     Raises:
-        FileNotFoundError: If config file doesn't exist.
+        FileNotFoundError: If config file doesn't exist and required env vars are missing.
         json.JSONDecodeError: If config file has invalid JSON.
     """
+    # Default configuration
+    config = {
+        "nautobot": {
+            "url": "http://localhost:8080",
+            "username": "admin", 
+            "api_token": ""
+        },
+        "server": {
+            "host": "127.0.0.1",
+            "port": 5003,
+            "debug": True
+        }
+    }
+    
+    # Load from config.json if it exists
     try:
-        with CONFIG_FILE.open("r", encoding="utf-8") as f:
-            config = json.load(f)
-        logger.info("Configuration loaded successfully")
-        return config
-    except FileNotFoundError:
-        logger.error(f"Configuration file {CONFIG_FILE} not found")
-        raise FileNotFoundError(f"Configuration file {CONFIG_FILE} not found. Please create it with Nautobot settings.")
+        if CONFIG_FILE.exists():
+            with CONFIG_FILE.open("r", encoding="utf-8") as f:
+                file_config = json.load(f)
+                # Merge file config with defaults
+                for section, values in file_config.items():
+                    if section in config:
+                        config[section].update(values)
+                    else:
+                        config[section] = values
+            logger.info("Configuration loaded from config.json")
+        else:
+            logger.warning(f"Configuration file {CONFIG_FILE} not found, using defaults")
     except json.JSONDecodeError as e:
         logger.error(f"Invalid JSON in configuration file: {e}")
         raise json.JSONDecodeError(f"Invalid JSON in configuration file: {e}")
     except Exception as e:
-        logger.error(f"Error loading configuration: {e}")
-        raise
+        logger.error(f"Error loading configuration file: {e}")
+    
+    # Override with environment variables
+    if os.getenv('NAUTOBOT_URL'):
+        config['nautobot']['url'] = os.getenv('NAUTOBOT_URL')
+        logger.info("NAUTOBOT_URL overridden from environment variable")
+        
+    if os.getenv('NAUTOBOT_USERNAME'):
+        config['nautobot']['username'] = os.getenv('NAUTOBOT_USERNAME')
+        logger.info("NAUTOBOT_USERNAME overridden from environment variable")
+        
+    if os.getenv('NAUTOBOT_API_TOKEN'):
+        config['nautobot']['api_token'] = os.getenv('NAUTOBOT_API_TOKEN')
+        logger.info("NAUTOBOT_API_TOKEN overridden from environment variable")
+        
+    if os.getenv('SERVER_HOST'):
+        config['server']['host'] = os.getenv('SERVER_HOST')
+        logger.info("SERVER_HOST overridden from environment variable")
+        
+    if os.getenv('SERVER_PORT'):
+        try:
+            config['server']['port'] = int(os.getenv('SERVER_PORT'))
+            logger.info("SERVER_PORT overridden from environment variable")
+        except ValueError:
+            logger.error("Invalid SERVER_PORT environment variable, using default")
+            
+    if os.getenv('SERVER_DEBUG'):
+        debug_val = os.getenv('SERVER_DEBUG').lower()
+        config['server']['debug'] = debug_val in ('true', '1', 'yes', 'on')
+        logger.info("SERVER_DEBUG overridden from environment variable")
+    
+    # Validate required configuration
+    if not config['nautobot']['api_token']:
+        logger.error("NAUTOBOT_API_TOKEN is required but not set")
+        raise ValueError("NAUTOBOT_API_TOKEN is required. Set it in config.json or as environment variable.")
+    
+    return config
 
 
 # Load configuration

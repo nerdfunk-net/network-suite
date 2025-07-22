@@ -6,13 +6,21 @@ services:
     ports:
       - "5003:5003"
     volumes:
-      # Mount config files
+      # Mount config files (optional if using environment variables)
       - ./config.json:/app/config.json:ro
       - ./usernames.txt:/app/usernames.txt:ro
       - ./passwords.txt:/app/passwords.txt:ro
     environment:
       - FLASK_ENV=production
       - PYTHONUNBUFFERED=1
+      # Nautobot Configuration (override config.json)
+      # - NAUTOBOT_URL=http://your-nautobot-server:8080
+      # - NAUTOBOT_USERNAME=admin
+      # - NAUTOBOT_API_TOKEN=your-api-token-here
+      # Server Configuration
+      - SERVER_HOST=0.0.0.0
+      - SERVER_PORT=5003
+      - SERVER_DEBUG=false
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5003/login"]
